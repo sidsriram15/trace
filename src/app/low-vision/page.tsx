@@ -1,12 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTraceSession } from "@/hooks/useTraceSession";
 import { MindMap } from "@/components/MindMap";
+import { useFolders } from "@/lib/folders";
 
 export default function LowVisionMode() {
+  return (
+    <Suspense fallback={null}>
+      <LowVisionModeInner />
+    </Suspense>
+  );
+}
+
+function LowVisionModeInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const folderId = searchParams.get("folder") ?? undefined;
+  const title = searchParams.get("title") ?? undefined;
+  const folders = useFolders();
+  const folderName = folderId
+    ? folders.find((f) => f.id === folderId)?.name
+    : undefined;
+
   const {
     videoRef,
     status,
@@ -17,9 +34,9 @@ export default function LowVisionMode() {
     transcript,
     interim,
     analyzing,
-    speechAvailable,
+    speechError,
     endSession,
-  } = useTraceSession("low-vision");
+  } = useTraceSession("low-vision", { folderId, title });
   // null = live view; a number = viewing that board state from the timeline
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
@@ -30,7 +47,14 @@ export default function LowVisionMode() {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
+        <div>
+          {(folderName || title) && (
+            <p className="font-mono text-xs tracking-[0.15em] text-muted uppercase">
+              {[folderName, title].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
+        </div>
         <div className="flex items-center gap-4">
           <p className="flex items-center gap-2 font-mono text-sm tracking-wide uppercase">
             <span
@@ -165,10 +189,9 @@ export default function LowVisionMode() {
             Teacher is saying
           </h2>
           <div aria-live="polite" className="mt-5 space-y-4">
-            {!speechAvailable && (
-              <p className="text-base leading-7 text-faint">
-                Live transcription isn&apos;t available in this browser — try
-                Chrome, and allow microphone access.
+            {speechError && (
+              <p role="alert" className="text-base leading-7 text-live">
+                {speechError}
               </p>
             )}
             {transcript.slice(-8).map((entry, i) => (
@@ -179,7 +202,7 @@ export default function LowVisionMode() {
             {interim && (
               <p className="text-lg leading-8 text-muted">{interim}…</p>
             )}
-            {speechAvailable && transcript.length === 0 && !interim && (
+            {!speechError && transcript.length === 0 && !interim && (
               <p className="text-base leading-7 text-faint">
                 Listening for the teacher…
               </p>

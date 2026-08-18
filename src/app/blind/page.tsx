@@ -1,13 +1,31 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTraceSession } from "@/hooks/useTraceSession";
 import { speak, stopSpeaking } from "@/lib/speech";
+import { useFolders } from "@/lib/folders";
 
 export default function BlindMode() {
+  return (
+    <Suspense fallback={null}>
+      <BlindModeInner />
+    </Suspense>
+  );
+}
+
+function BlindModeInner() {
   const router = useRouter();
-  const { videoRef, status, stopped, error, states, latest, endSession } = useTraceSession("blind");
+  const searchParams = useSearchParams();
+  const folderId = searchParams.get("folder") ?? undefined;
+  const title = searchParams.get("title") ?? undefined;
+  const folders = useFolders();
+  const folderName = folderId
+    ? folders.find((f) => f.id === folderId)?.name
+    : undefined;
+
+  const { videoRef, status, stopped, error, states, latest, endSession } =
+    useTraceSession("blind", { folderId, title });
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const spokenCount = useRef(0);
@@ -27,8 +45,16 @@ export default function BlindMode() {
 
   // Announce session start / camera problems aloud too
   useEffect(() => {
-    if (status === "live") speak("Trace is live and watching the board.");
-    else if (status === "error" && error) speak(error);
+    if (status === "live") {
+      const name = [folderName, title].filter(Boolean).join(", ");
+      speak(
+        name
+          ? `Trace is live and watching the board, for ${name}.`
+          : "Trace is live and watching the board.",
+      );
+    } else if (status === "error" && error) speak(error);
+    // Only announce once, when the session first goes live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, error]);
 
   // Keyboard shortcuts: Space pause/resume, R repeat (when not on a control)
@@ -56,7 +82,16 @@ export default function BlindMode() {
       <video ref={videoRef} muted playsInline className="sr-only" aria-hidden="true" />
 
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">Blind mode</h1>
+        <div>
+          {(folderName || title) && (
+            <p className="font-mono text-xs tracking-[0.15em] text-muted uppercase">
+              {[folderName, title].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {title || "Blind mode"}
+          </h1>
+        </div>
         <div className="flex items-center gap-4">
           <p className="font-mono text-sm tracking-wide uppercase">
             {stopped

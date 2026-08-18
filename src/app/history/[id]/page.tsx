@@ -7,6 +7,7 @@ import { useSession } from "@/lib/history";
 import { speak } from "@/lib/speech";
 import { useLessonPlayback } from "@/hooks/useLessonPlayback";
 import { MindMap } from "@/components/MindMap";
+import { useFolders } from "@/lib/folders";
 import type { BoardState } from "@/hooks/useTraceSession";
 
 /** Full hands-free read-through of a past class, for blind mode. */
@@ -96,13 +97,14 @@ export default function HistoryDetail() {
   const params = useParams<{ id: string }>();
   const session = useSession(params.id);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const folders = useFolders();
 
   if (session === undefined) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-6 py-10">
         <p className="text-lg text-muted">This class wasn&apos;t found.</p>
-        <Link href="/history" className="mt-4 underline hover:no-underline">
-          Back to past classes
+        <Link href="/" className="mt-4 underline hover:no-underline">
+          Back to your classes
         </Link>
       </div>
     );
@@ -113,18 +115,22 @@ export default function HistoryDetail() {
     selectedId === null
       ? session.states[session.states.length - 1]
       : session.states.find((s) => s.id === selectedId);
+  const folderName = session.folderId
+    ? folders.find((f) => f.id === session.folderId)?.name
+    : undefined;
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <div>
           <p className="text-sm text-muted">
-            <Link href="/history" className="underline hover:no-underline">
-              Past classes
+            <Link href="/" className="underline hover:no-underline">
+              Your classes
             </Link>
+            {folderName && <> · {folderName}</>}
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            {selected?.heading ?? "Untitled class"}
+            {session.title || selected?.heading || "Untitled class"}
           </h1>
         </div>
         <p className="font-mono text-sm tracking-wide text-muted uppercase">
