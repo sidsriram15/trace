@@ -4,6 +4,8 @@ import type { BoardState, TranscriptEntry } from "@/hooks/useTraceSession";
 export type SavedSession = {
   id: string;
   mode: "low-vision" | "blind";
+  folderId?: string;
+  title?: string;
   startedAt: number;
   endedAt: number;
   states: BoardState[];

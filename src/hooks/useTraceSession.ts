@@ -35,7 +35,10 @@ function now() {
   });
 }
 
-export function useTraceSession(mode: "low-vision" | "blind") {
+export function useTraceSession(
+  mode: "low-vision" | "blind",
+  meta?: { folderId?: string; title?: string },
+) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<SessionStatus>("starting");
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +46,7 @@ export function useTraceSession(mode: "low-vision" | "blind") {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [interim, setInterim] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
-  const [speechAvailable, setSpeechAvailable] = useState(true);
+  const [speechError, setSpeechError] = useState<string | null>(null);
   const startedAt = useRef(0);
   const statesRef = useRef<BoardState[]>([]);
 
@@ -181,7 +184,7 @@ export function useTraceSession(mode: "low-vision" | "blind") {
         setTranscript(transcriptRef.current);
       },
       onInterim: setInterim,
-      onUnavailable: () => setSpeechAvailable(false),
+      onUnavailable: (reason) => setSpeechError(reason),
     });
     stopRecognizer.current = () => recognizer?.stop();
     return () => recognizer?.stop();
@@ -200,12 +203,14 @@ export function useTraceSession(mode: "low-vision" | "blind") {
     setInterim("");
     saveSession({
       mode,
+      folderId: meta?.folderId,
+      title: meta?.title,
       startedAt: startedAt.current,
       endedAt: Date.now(),
       states: statesRef.current,
       transcript: transcriptRef.current,
     });
-  }, [mode]);
+  }, [mode, meta?.folderId, meta?.title]);
 
   return {
     videoRef,
@@ -217,7 +222,7 @@ export function useTraceSession(mode: "low-vision" | "blind") {
     transcript,
     interim,
     analyzing,
-    speechAvailable,
+    speechError,
     endSession,
   };
 }
