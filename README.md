@@ -22,29 +22,41 @@ differently.
 
 ## How it works
 
-1. **Capture.** The browser grabs a camera frame every few seconds and does
-   a cheap client-side pixel-diff against the last frame it analyzed, so it
-   only calls the model when the board actually looks different (or every
-   30s regardless, in case slow handwriting never trips the diff).
-2. **Understand.** Changed frames go to a vision-language model
+1. **Set your mode, once.** Accessibility mode (Low Vision or Blind) is a
+   **Settings** preference, not something re-picked every session — a
+   student sets it once and every class after that follows it.
+2. **Home is your classes.** The home page organizes past classes into
+   folders (by subject, or however you like) plus an "Unsorted" bucket for
+   anything not filed away. It's a browser, not a mode picker.
+3. **Starting a class** goes through a dedicated, clear intro screen
+   (`/new`) before any camera turns on — pick or create a folder, optionally
+   name the class, and confirm you're ready. In Blind mode this screen also
+   speaks its instructions aloud on load, so it doesn't depend on being
+   read visually.
+4. **Capture.** Once a class begins, the browser grabs a camera frame every
+   few seconds and does a cheap client-side pixel-diff against the last
+   frame it analyzed, so it only calls the model when the board actually
+   looks different (or every 30s regardless, in case slow handwriting never
+   trips the diff).
+5. **Understand.** Changed frames go to a vision-language model
    (`Qwen/Qwen2.5-VL-72B-Instruct`, served via Nebius AI Studio) along with
    the notes accumulated so far and the last few seconds of live lecture
    transcript (captured via the Web Speech API in-browser). The model
    returns whether anything meaningfully changed, a spoken-style narration
    of it, and updated cumulative structured notes in Markdown.
-3. **Present.**
+6. **Present.**
    - **Blind mode** speaks each new narration aloud immediately
      (`SpeechSynthesis`), with pause/repeat controls and keyboard shortcuts
      (Space to pause, R to repeat).
    - **Low-vision mode** shows the live camera feed plus the notes rendered
      as a large-text mind map (branching topic → point structure, not a
      flat wall of text) and the live transcript, both continuously updated.
-   - Ending a class saves the full session (every board state, image,
-     narration, and transcript) to `localStorage`. **History** lists past
-     classes; opening one replays it — a mind-map notes view for low-vision
-     sessions, and a full hands-free "Play this class" read-through
-     (chained narration, previous/next, keyboard controls) for blind
-     sessions.
+   - Ending a class saves the full session (folder, title, every board
+     state, image, narration, and transcript) to `localStorage`, and it
+     shows up under its folder on the home page. Opening a past class
+     replays it — a mind-map notes view for low-vision sessions, and a full
+     hands-free "Play this class" read-through (chained narration,
+     previous/next, keyboard controls) for blind sessions.
 
 ## Stack
 

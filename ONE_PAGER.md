@@ -39,11 +39,13 @@ A student points a phone or laptop camera at the board before class. Trace:
    - **Low-vision mode** shows a large-text, high-contrast live view with
      notes automatically organized into a branching mind map instead of a
      wall of text — and the live camera feed and transcript alongside it.
-4. **Remembers.** Every class is saved automatically. A student can go back
-   later and either browse a class as a mind map (low-vision) or press
-   **Play this class** to hear the entire board history read back to them
-   start to finish, hands-free (blind) — built specifically to support
-   studying, not just live use.
+4. **Remembers.** Every class is saved automatically, filed under a folder
+   the student organizes by subject — the home page is a class browser, not
+   a mode picker; mode is a one-time Settings preference instead. A student
+   can go back later and either browse a class as a mind map (low-vision)
+   or press **Play this class** to hear the entire board history read back
+   to them start to finish, hands-free (blind) — built specifically to
+   support studying, not just live use.
 
 ## Why this approach
 
