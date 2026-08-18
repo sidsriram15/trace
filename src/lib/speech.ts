@@ -90,11 +90,12 @@ export function createRecognizer(handlers: {
 }
 
 /** Speak text aloud, replacing anything currently being spoken. */
-export function speak(text: string) {
+export function speak(text: string, onEnd?: () => void) {
   if (!("speechSynthesis" in window) || !text) return;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = 1.05;
+  if (onEnd) utterance.onend = onEnd;
   window.speechSynthesis.speak(utterance);
 }
 

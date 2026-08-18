@@ -3,40 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTraceSession } from "@/hooks/useTraceSession";
-
-/** Minimal renderer for the model's markdown notes ("## " + "- " + text). */
-function Notes({ markdown }: { markdown: string }) {
-  const blocks = markdown.split("\n").filter((line) => line.trim());
-  return (
-    <div className="space-y-3">
-      {blocks.map((line, i) => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith("## ")) {
-          return (
-            <h3
-              key={i}
-              className="pt-3 text-xl font-semibold tracking-tight first:pt-0"
-            >
-              {trimmed.slice(3)}
-            </h3>
-          );
-        }
-        if (trimmed.startsWith("- ")) {
-          return (
-            <p key={i} className="pl-5 text-lg leading-8">
-              – {trimmed.slice(2)}
-            </p>
-          );
-        }
-        return (
-          <p key={i} className="text-lg leading-8">
-            {trimmed.replace(/^#+\s*/, "")}
-          </p>
-        );
-      })}
-    </div>
-  );
-}
+import { MindMap } from "@/components/MindMap";
 
 export default function LowVisionMode() {
   const router = useRouter();
@@ -182,9 +149,9 @@ export default function LowVisionMode() {
           <h2 className="border-b border-line pb-2 font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
             Notes so far
           </h2>
-          <div className="mt-5" aria-live="polite">
+          <div className="mt-6" aria-live="polite">
             {latest?.notes ? (
-              <Notes markdown={latest.notes} />
+              <MindMap markdown={latest.notes} />
             ) : (
               <p className="text-base leading-7 text-faint">
                 Notes build automatically once the board is read.

@@ -1,38 +1,94 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "@/lib/history";
 import { speak } from "@/lib/speech";
+import { useLessonPlayback } from "@/hooks/useLessonPlayback";
+import { MindMap } from "@/components/MindMap";
+import type { BoardState } from "@/hooks/useTraceSession";
 
-function Notes({ markdown }: { markdown: string }) {
-  const blocks = markdown.split("\n").filter((line) => line.trim());
+/** Full hands-free read-through of a past class, for blind mode. */
+function LessonPlayback({ states }: { states: BoardState[] }) {
+  const { index, playing, playFrom, pause, next, prev } =
+    useLessonPlayback(states);
+  const current = index === null ? null : states[index];
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLElement && e.target.closest("button, input"))
+        return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (playing) pause();
+        else playFrom(index ?? 0);
+      } else if (e.key === "ArrowRight") next();
+      else if (e.key === "ArrowLeft") prev();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [playing, index, playFrom, pause, next, prev]);
+
   return (
-    <div className="space-y-3">
-      {blocks.map((line, i) => {
-        const trimmed = line.trim();
-        if (trimmed.startsWith("## ")) {
-          return (
-            <h3 key={i} className="pt-3 text-xl font-semibold tracking-tight first:pt-0">
-              {trimmed.slice(3)}
-            </h3>
-          );
-        }
-        if (trimmed.startsWith("- ")) {
-          return (
-            <p key={i} className="pl-5 text-lg leading-8">
-              – {trimmed.slice(2)}
-            </p>
-          );
-        }
-        return (
-          <p key={i} className="text-lg leading-8">
-            {trimmed.replace(/^#+\s*/, "")}
+    <section aria-label="Listen to this class" className="border-y-2 border-line py-10">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
+          Listen to this class
+        </h2>
+        {index !== null && (
+          <p className="font-mono text-xs tracking-wide text-muted uppercase">
+            {index + 1} of {states.length}
           </p>
-        );
-      })}
-    </div>
+        )}
+      </div>
+
+      <div aria-live="polite" className="mt-6 min-h-24">
+        {current ? (
+          <>
+            <p className="font-mono text-xs tracking-[0.15em] text-muted uppercase">
+              {current.time}
+              {current.erased ? " · board erased" : ""}
+            </p>
+            <p className="mt-3 text-3xl leading-[1.35] font-medium tracking-tight text-balance sm:text-4xl">
+              {current.narration}
+            </p>
+          </>
+        ) : (
+          <p className="text-2xl leading-9 font-medium text-muted">
+            {states.length} board update{states.length === 1 ? "" : "s"} were
+            captured in this class. Press play to hear the whole thing, start
+            to finish.
+          </p>
+        )}
+      </div>
+
+      <div className="mt-8 grid grid-cols-3 gap-3">
+        <button
+          onClick={prev}
+          disabled={index === null || index === 0}
+          className="border-2 border-line px-4 py-5 text-lg font-semibold hover:bg-surface disabled:border-line-soft disabled:text-faint"
+        >
+          Previous
+        </button>
+        <button
+          onClick={() => (playing ? pause() : playFrom(index ?? 0))}
+          className="border-2 border-line bg-foreground px-4 py-5 text-lg font-semibold text-background hover:bg-muted"
+        >
+          {playing ? "Pause" : index === null ? "Play this class" : "Resume"}
+        </button>
+        <button
+          onClick={next}
+          disabled={index === null || index === states.length - 1}
+          className="border-2 border-line px-4 py-5 text-lg font-semibold hover:bg-surface disabled:border-line-soft disabled:text-faint"
+        >
+          Next
+        </button>
+      </div>
+      <p className="mt-3 text-center font-mono text-xs tracking-wide text-faint uppercase">
+        Space — play / pause · Left arrow — previous · Right arrow — next
+      </p>
+    </section>
   );
 }
 
@@ -52,6 +108,7 @@ export default function HistoryDetail() {
     );
   }
 
+  const isBlind = session.mode === "blind";
   const selected =
     selectedId === null
       ? session.states[session.states.length - 1]
@@ -80,49 +137,62 @@ export default function HistoryDetail() {
         </p>
       </div>
 
-      {selected?.image && (
-        <section aria-label="Whiteboard capture" className="relative mt-6 min-h-[52vh] border border-line bg-surface">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={selected.image}
-            alt={`Whiteboard: ${selected.heading}`}
-            className="absolute inset-0 h-full w-full object-contain"
-          />
-        </section>
-      )}
+      {isBlind ? (
+        <div className="mt-8">
+          <LessonPlayback states={session.states} />
+        </div>
+      ) : (
+        <>
+          {selected?.image && (
+            <section
+              aria-label="Whiteboard capture"
+              className="relative mt-6 min-h-[52vh] border border-line bg-surface"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={selected.image}
+                alt={`Whiteboard: ${selected.heading}`}
+                className="absolute inset-0 h-full w-full object-contain"
+              />
+            </section>
+          )}
 
-      <nav aria-label="Board timeline" className="border-x border-b border-line">
-        <ol className="flex overflow-x-auto">
-          {session.states.map((state) => (
-            <li key={state.id} className="flex min-w-44 flex-1">
-              <button
-                onClick={() => setSelectedId(state.id)}
-                aria-current={selected?.id === state.id ? "true" : undefined}
-                className={`w-full border-l border-line-soft px-4 py-3 text-left first:border-l-0 ${
-                  selected?.id === state.id
-                    ? "bg-foreground text-background"
-                    : "hover:bg-surface"
-                }`}
-              >
-                <span className="block font-mono text-xs tracking-wide">
-                  {state.time}
-                  {state.erased ? " · erased" : ""}
-                </span>
-                <span className="mt-1 block text-base font-medium">{state.label}</span>
-              </button>
-            </li>
-          ))}
-        </ol>
-      </nav>
+          <nav aria-label="Board timeline" className="border-x border-b border-line">
+            <ol className="flex overflow-x-auto">
+              {session.states.map((state) => (
+                <li key={state.id} className="flex min-w-44 flex-1">
+                  <button
+                    onClick={() => setSelectedId(state.id)}
+                    aria-current={selected?.id === state.id ? "true" : undefined}
+                    className={`w-full border-l border-line-soft px-4 py-3 text-left first:border-l-0 ${
+                      selected?.id === state.id
+                        ? "bg-foreground text-background"
+                        : "hover:bg-surface"
+                    }`}
+                  >
+                    <span className="block font-mono text-xs tracking-wide">
+                      {state.time}
+                      {state.erased ? " · erased" : ""}
+                    </span>
+                    <span className="mt-1 block text-base font-medium">
+                      {state.label}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+        </>
+      )}
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[3fr_2fr] lg:gap-14">
         <section aria-label="Structured notes">
           <h2 className="border-b border-line pb-2 font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
             Notes
           </h2>
-          <div className="mt-5">
+          <div className="mt-6">
             {selected?.notes ? (
-              <Notes markdown={selected.notes} />
+              <MindMap markdown={selected.notes} />
             ) : (
               <p className="text-base leading-7 text-faint">No notes captured.</p>
             )}
@@ -131,10 +201,10 @@ export default function HistoryDetail() {
 
         <section aria-label="Narration and transcript">
           <h2 className="border-b border-line pb-2 font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
-            {session.mode === "blind" ? "Narration history" : "Transcript"}
+            {isBlind ? "Every board update" : "Transcript"}
           </h2>
           <div className="mt-5 space-y-5">
-            {session.mode === "blind" ? (
+            {isBlind ? (
               [...session.states].reverse().map((s) => (
                 <button
                   key={s.id}
