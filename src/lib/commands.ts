@@ -25,18 +25,20 @@ export type VoiceAction =
   | "previous"
   | "status"
   | "name"
-  | "folder";
+  | "folder"
+  | "pin"
+  | "submit";
 
 /**
  * A recognized command. `value` carries free text the student dictated —
- * only "name" uses it, but the shape is what lets a command be more than a
- * fixed phrase.
+ * "name", "folder", "pin", and "submit" all use it, but the shape is what
+ * lets a command be more than a fixed phrase.
  */
 export type VoiceCommand = { action: VoiceAction; value?: string };
 
-// Everything after one of these is treated as the class name rather than
-// matched against the fixed vocabulary. Longest first so "call this class"
-// wins over "call this".
+// Everything after one of these is treated as the class name (or, on the
+// account page, the student's name) rather than matched against the fixed
+// vocabulary. Longest first so "call this class" wins over "call this".
 const NAMING_PREFIXES = [
   "name this class",
   "name the class",
@@ -44,9 +46,11 @@ const NAMING_PREFIXES = [
   "call the class",
   "name this lesson",
   "call this lesson",
+  "my name is",
   "the name is",
   "name this",
   "call this",
+  "call me",
   "name it",
   "call it",
   "title it",
@@ -60,6 +64,19 @@ const NAME_FILLER = /^(is|as|to|it)\s+/;
 // Same idea for filing a class into a folder: everything after the prefix
 // is the folder name, matched against the folders that actually exist.
 const FOLDER_PREFIXES = [
+  "make a folder called",
+  "make a folder",
+  "make a new folder called",
+  "make a new folder",
+  "create a folder called",
+  "create a folder",
+  "create a new folder called",
+  "create a new folder",
+  "start a folder called",
+  "new folder called",
+  "new folder",
+  "add a folder called",
+  "add a folder",
   "put the class in the",
   "put the class in",
   "put this class in the",
@@ -92,6 +109,56 @@ const FOLDER_SUFFIX = /\s+(folder|class|classes)$/;
 
 // ...and the same at the front: "put it in the folder called science".
 const FOLDER_LEAD = /^(the\s+)?(folder\s+)?(called\s+|named\s+)?/;
+
+// Dictating a PIN: everything after one of these is digits, spoken either
+// as words ("one two three four") or as numerals if the recognizer already
+// converted them. Longest first so "set my pin to" wins over "pin".
+const PIN_PREFIXES = [
+  "set my pin to",
+  "set the pin to",
+  "make my pin",
+  "my pin is",
+  "the pin is",
+  "pin number",
+  "pin is",
+  "pin",
+];
+
+const DIGIT_WORDS: Record<string, string> = {
+  zero: "0",
+  oh: "0",
+  o: "0",
+  one: "1",
+  two: "2",
+  three: "3",
+  four: "4",
+  five: "5",
+  six: "6",
+  seven: "7",
+  eight: "8",
+  nine: "9",
+};
+
+/** "one two three four" or "1234" (however the recognizer heard it) → "1234". */
+function wordsToDigits(text: string): string {
+  let out = "";
+  for (const token of text.split(" ")) {
+    if (/^\d+$/.test(token)) {
+      out += token;
+      continue;
+    }
+    const digit = DIGIT_WORDS[token];
+    if (digit) out += digit;
+  }
+  return out.slice(0, 8);
+}
+
+// Setting up or signing into an account. Matched before the generic
+// vocabulary so "sign in" doesn't need to be spelled out phonetically.
+const ACCOUNT_PHRASES: [string, string[]][] = [
+  ["create", ["create an account", "create account", "create my account", "make an account", "set up an account", "sign up"]],
+  ["signin", ["sign in", "log in", "sign me in", "log me in"]],
+];
 
 // Longest phrases first within each action so "start over" doesn't get
 // swallowed by "start". Order across actions matters too: the first action
@@ -170,6 +237,21 @@ export function matchCommand(
         .replace(FOLDER_SUFFIX, "")
         .trim();
       if (value) return { action: "folder", value };
+    }
+  }
+
+  if (!allowed || allowed.includes("pin")) {
+    for (const prefix of PIN_PREFIXES) {
+      const at = said.indexOf(prefix);
+      if (at === -1) continue;
+      const digits = wordsToDigits(said.slice(at + prefix.length).trim());
+      if (digits) return { action: "pin", value: digits };
+    }
+  }
+
+  if (!allowed || allowed.includes("submit")) {
+    for (const [value, phrases] of ACCOUNT_PHRASES) {
+      if (phrases.some((p) => said.includes(p))) return { action: "submit", value };
     }
   }
 

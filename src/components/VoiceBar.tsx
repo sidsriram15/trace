@@ -17,9 +17,13 @@ function commandsFor(pathname: string): {
 
   if (pathname === "/")
     return {
-      allowed: nav,
+      allowed: [...nav, "folder"],
       where: "Your classes. This is the home page, listing every class you've saved.",
-      help: 'On your classes you can say: "new class" to start one, "settings" to change the voice and reading speed, or "where am I". Press the space bar any time to talk to Trace.',
+      help:
+        'On your classes you can say: "new class" to start one, ' +
+        '"make a folder called" and a name to create a folder — for example, ' +
+        '"make a folder called science" — "settings" to change the voice and ' +
+        'reading speed, or "where am I". Press V any time to talk to Trace.',
     };
   if (pathname === "/new")
     return {
@@ -40,9 +44,17 @@ function commandsFor(pathname: string): {
     };
   if (pathname === "/account")
     return {
-      allowed: nav,
+      allowed: [...nav, "name", "pin", "submit"],
       where: "The sign-in page. You can use Trace without an account at all.",
-      help: 'Here you can say: "my classes" to go back and keep using Trace without an account.',
+      help:
+        "Here you can set up an account entirely by voice. Say four things. " +
+        'One: "my name is" and your name — for example, "my name is Jordan". ' +
+        'Two: "my pin is" and four to eight digits, said one at a time — ' +
+        'for example, "my pin is one two three four". Say it somewhere private, ' +
+        "since anyone nearby can hear it. " +
+        'Three: "create an account" to make one, or "sign in" if you already have one. ' +
+        'Four: "my classes" to go back and skip having an account at all — ' +
+        "Trace works fully without one.",
     };
   if (pathname.startsWith("/history/"))
     return {

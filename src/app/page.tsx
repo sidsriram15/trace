@@ -1,12 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFolder, deleteFolder, useFolders, type Folder } from "@/lib/folders";
 import { deleteSession, useSessions, type SavedSession } from "@/lib/history";
 import { ClassRow } from "@/components/ClassRow";
 import { useAccount } from "@/lib/account";
 import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
+import { speak } from "@/lib/speech";
+import type { VoiceCommand } from "@/lib/commands";
+
+/** Spoken folder names arrive lowercased from the recognizer. */
+function titleCase(value: string): string {
+  return value.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+const simplify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 function FolderSection({
   folder,
@@ -60,6 +69,26 @@ export default function Home() {
       ? 'Your classes. Nothing saved yet. Press V to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.'
       : `Your classes. ${sessions.length} saved. Press V to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.`,
   );
+
+  // "Make a folder called X" works from here without finding the button —
+  // the same voice event the /new page listens for, but this page creates
+  // a standalone folder instead of filing a class into one.
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const command = (e as CustomEvent<VoiceCommand>).detail;
+      if (command?.action !== "folder" || !command.value) return;
+      const named = titleCase(command.value);
+      const existing = folders.find((f) => simplify(f.name) === simplify(named));
+      if (existing) {
+        speak(`You already have a folder called ${existing.name}.`);
+        return;
+      }
+      createFolder(named);
+      speak(`Made a new folder called ${named}.`);
+    };
+    window.addEventListener("trace:command", onCommand);
+    return () => window.removeEventListener("trace:command", onCommand);
+  }, [folders]);
 
   const handleCreateFolder = () => {
     const name = newFolderName.trim();

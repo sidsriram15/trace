@@ -1,11 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, useAccount } from "@/lib/account";
 import { speak } from "@/lib/speech";
 import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
+import type { VoiceCommand } from "@/lib/commands";
+
+/** Spoken names arrive lowercased from the recognizer. */
+function titleCase(value: string): string {
+  return value.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
 
 export default function AccountPage() {
   const router = useRouter();
@@ -20,27 +26,73 @@ export default function AccountPage() {
     "Account. You do not need one — Trace works fully without it, and your " +
       "classes stay on this device. An account is only for getting your " +
       "classes on more than one device. If you want one, pick a name and a " +
-      "PIN of four to eight digits. There is no email and no password.",
+      "PIN of four to eight digits. There is no email and no password. " +
+      'This whole page can be done by voice — press V, then say "my name is" ' +
+      'and your name, "my pin is" and your digits, then "create an account". ' +
+      'Say "help" any time to hear that again.',
   );
 
-  const submit = async (e: React.FormEvent) => {
+  const doSubmit = useCallback(
+    async (effectiveIntent: "signin" | "create") => {
+      setBusy(true);
+      setError(null);
+      const result = await signIn(username, pin, effectiveIntent);
+      setBusy(false);
+      if (result.ok) {
+        speak(
+          effectiveIntent === "create"
+            ? "Account created. Your classes will sync from now on."
+            : "Signed in. Loading your classes.",
+        );
+        router.push("/");
+      } else {
+        setError(result.error ?? "Something went wrong.");
+        speak(result.error ?? "Something went wrong.");
+      }
+    },
+    [username, pin, router],
+  );
+
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const result = await signIn(username, pin, intent);
-    setBusy(false);
-    if (result.ok) {
-      speak(
-        intent === "create"
-          ? "Account created. Your classes will sync from now on."
-          : "Signed in. Loading your classes.",
-      );
-      router.push("/");
-    } else {
-      setError(result.error ?? "Something went wrong.");
-      speak(result.error ?? "Something went wrong.");
-    }
+    void doSubmit(intent);
   };
+
+  // Filling in and submitting the form by voice, so a blind student never
+  // has to find these fields to use them. The PIN is confirmed by digit
+  // count only, not read back — it's meant to be said somewhere private,
+  // and repeating it doubles the chance of it being overheard.
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const command = (e as CustomEvent<VoiceCommand>).detail;
+      if (!command) return;
+      if (command.action === "name" && command.value) {
+        const named = titleCase(command.value);
+        setUsername(named);
+        speak(`Name set to ${named}.`);
+      } else if (command.action === "pin" && command.value) {
+        setPin(command.value);
+        speak(
+          `PIN set, ${command.value.length} digit${command.value.length === 1 ? "" : "s"}. ` +
+            'Say "create an account" or "sign in" to continue.',
+        );
+      } else if (command.action === "submit" && command.value) {
+        const nextIntent = command.value === "signin" ? "signin" : "create";
+        setIntent(nextIntent);
+        if (!username.trim()) {
+          speak('Say your name first — for example, "my name is Jordan".');
+          return;
+        }
+        if (!pin.trim()) {
+          speak('Say your pin first — for example, "my pin is one two three four".');
+          return;
+        }
+        void doSubmit(nextIntent);
+      }
+    };
+    window.addEventListener("trace:command", onCommand);
+    return () => window.removeEventListener("trace:command", onCommand);
+  }, [username, pin, doSubmit]);
 
   if (account.status === "signed-in") {
     return (
