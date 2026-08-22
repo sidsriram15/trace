@@ -88,7 +88,7 @@ const FOLDER_LEAD = /^(the\s+)?(folder\s+)?(called\s+|named\s+)?/;
 // whose phrase is found wins, so put specific ones above generic ones.
 const VOCABULARY: [VoiceAction, string[]][] = [
   ["help", ["what can i say", "what can you do", "help me", "commands", "help"]],
-  ["end", ["end the class", "end class", "stop the class", "finish class", "end this"]],
+  ["end", ["end the class", "end class", "stop the class", "finish class", "end this", "end"]],
   ["repeat", ["say that again", "read that again", "repeat that", "again", "repeat", "what did you say"]],
   ["resume", ["start talking", "keep going", "resume", "unpause", "continue"]],
   ["pause", ["be quiet", "stop talking", "pause", "quiet", "shush", "hush", "mute"]],

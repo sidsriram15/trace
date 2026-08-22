@@ -81,7 +81,11 @@ export function replaceSessions(list: SavedSession[]): void {
 }
 
 export function saveSession(session: Omit<SavedSession, "id">): void {
-  if (session.states.length === 0 || typeof window === "undefined") return;
+  // A class with spoken transcript but no board capture yet (ended quickly,
+  // or the board simply never changed) is still worth keeping — only skip
+  // saving when there is truly nothing to show.
+  const hasContent = session.states.length > 0 || session.transcript.length > 0;
+  if (!hasContent || typeof window === "undefined") return;
   ensureLoaded();
   const id = `${session.startedAt}-${Math.random().toString(36).slice(2, 8)}`;
   commit([{ ...session, id }, ...cache]);

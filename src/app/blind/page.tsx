@@ -57,8 +57,9 @@ function BlindModeInner() {
   const spokenCount = useRef(0);
   const latestRef = useRef<{ narration: string } | null>(null);
   const endRef = useRef<() => void>(() => {});
-  // Read inside `finish`, which is built before `states` exists.
+  // Read inside `finish`, which is built before `states`/`transcript` exist.
   const statesRef = useRef<unknown[]>([]);
+  const transcriptRef = useRef<unknown[]>([]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -133,14 +134,18 @@ function BlindModeInner() {
 
   const finish = useCallback(() => {
     stopSpeaking();
-    // A class with nothing on the board isn't saved. Saying so is the
-    // difference between "ended, nothing to keep" and "the button is
-    // broken" — there is nothing on screen afterwards to tell them apart.
+    // A class with nothing on the board OR in the transcript isn't saved.
+    // Saying so is the difference between "ended, nothing to keep" and "the
+    // button is broken" — there is nothing on screen afterwards to tell
+    // them apart.
     const captured = statesRef.current.length;
+    const heard = transcriptRef.current.length;
     speak(
-      captured === 0
-        ? "Class ended. Nothing was captured from the board, so there was nothing to save."
-        : `Class ended and saved, with ${captured} board update${captured === 1 ? "" : "s"}.`,
+      captured === 0 && heard === 0
+        ? "Class ended. Nothing was captured, so there was nothing to save."
+        : captured === 0
+          ? "Class ended and saved, with spoken transcript but no board updates."
+          : `Class ended and saved, with ${captured} board update${captured === 1 ? "" : "s"}.`,
     );
     endSession();
     router.push("/");
@@ -155,6 +160,9 @@ function BlindModeInner() {
   useEffect(() => {
     statesRef.current = states;
   }, [states]);
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
   useEffect(() => {
     endRef.current = finish;
   }, [finish]);
