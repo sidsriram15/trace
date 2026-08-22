@@ -399,19 +399,10 @@ function BlindModeInner() {
           </div>
         ) : (
           (transcript.length > 0 || interim) && (
-            <div className="mt-5 space-y-1">
-              {transcript.length > 3 && (
-                <p className="text-base leading-7 text-faint">…</p>
-              )}
-              {transcript.slice(-3).map((entry, i) => (
-                <p key={i} className="truncate text-base leading-7 text-faint">
-                  {entry.text}
-                </p>
-              ))}
-              {interim && (
-                <p className="truncate text-base leading-7 text-faint">{interim}</p>
-              )}
-            </div>
+            <p className="mt-5 truncate text-base leading-7 text-faint">
+              {transcript.length > 0 ? "… " : ""}
+              {interim || transcript[transcript.length - 1]?.text}
+            </p>
           )
         )}
       </section>
