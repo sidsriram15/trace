@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 60;
 
-const client = new OpenAI({
-  baseURL: "https://api.tokenfactory.nebius.com/v1/",
-  apiKey: process.env.NEBIUS_API_KEY,
-});
+function getClient() {
+  const apiKey = process.env.NEBIUS_API_KEY;
+  if (!apiKey) throw new Error("NEBIUS_API_KEY is not set");
+  return new OpenAI({ baseURL: "https://api.tokenfactory.nebius.com/v1/", apiKey });
+}
 
 const MODEL = "Qwen/Qwen2.5-VL-72B-Instruct";
 
@@ -52,7 +53,7 @@ export async function POST(req: Request) {
   ].join("\n\n");
 
   try {
-    const response = await client.chat.completions.create({
+    const response = await getClient().chat.completions.create({
       model: MODEL,
       max_tokens: 2000,
       messages: [
