@@ -111,6 +111,10 @@ export function VoiceBar() {
     allowed,
     help,
     spaceToTalk: true,
+    // On the class screen the Pause/Resume button is often focused (it's
+    // the button most people click first), and space would otherwise
+    // silently activate it instead of opening voice.
+    spaceIgnoresFocus: pathname === "/blind",
     onCommand: (command) => {
       switch (command.action) {
         case "home":

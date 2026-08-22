@@ -28,10 +28,18 @@ export function useVoiceCommands(options: {
   help: string;
   enabled?: boolean;
   /**
-   * Whether the space bar opens the microphone. Off during a class, where
-   * space is pause — the thing you need to reach instantly there.
+   * Whether the space bar opens the microphone.
    */
   spaceToTalk?: boolean;
+  /**
+   * Make space behave exactly like V — always opens voice, even when a
+   * button is focused, instead of letting the browser activate that
+   * button. Off by default so space still works as a normal button
+   * activator elsewhere; on for the class screen, where a focused
+   * Pause/Resume button previously meant space silently toggled pause
+   * instead of opening voice.
+   */
+  spaceIgnoresFocus?: boolean;
 }) {
   const [listenState, setListenState] = useState<ListenState>("idle");
   const [heard, setHeard] = useState<string | null>(null);
@@ -181,16 +189,18 @@ export function useVoiceCommands(options: {
         return;
       }
 
-      // Space opens voice only when spaceToTalk is on AND no button has
-      // focus (so the browser can still use space to activate buttons).
-      if (isSpace && spaceToTalk && !(target instanceof HTMLElement && target.closest("button"))) {
-        e.preventDefault();
-        start();
-      }
+      if (!isSpace || !spaceToTalk) return;
+      const onFocusedButton = target instanceof HTMLElement && target.closest("button");
+      // Normally space defers to a focused button so the browser can still
+      // use it to click things. spaceIgnoresFocus turns that off — space
+      // always opens voice, same as V, never activates whatever's focused.
+      if (onFocusedButton && !options.spaceIgnoresFocus) return;
+      e.preventDefault();
+      start();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [start, options.enabled, spaceToTalk]);
+  }, [start, options.enabled, spaceToTalk, options.spaceIgnoresFocus]);
 
   useEffect(() => () => sessionRef.current?.cancel(), []);
 
