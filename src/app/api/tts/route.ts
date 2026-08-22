@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 30;
 
-// Rachel — clear, warm, well-suited to narrating written content aloud.
-const DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+// Adam — clear, steady, well-suited to narrating written content aloud.
+const DEFAULT_VOICE_ID = "s3TPKV1kjDlVtZbl4Ksh";
 // Turbo model: much lower latency than the standard models, which matters
 // here since narration has to start soon after a board update is detected.
 const MODEL_ID = "eleven_turbo_v2_5";
