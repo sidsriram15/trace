@@ -17,13 +17,15 @@ function commandsFor(pathname: string): {
 
   if (pathname === "/")
     return {
-      allowed: [...nav, "folder", "open"],
+      allowed: [...nav, "folder", "open", "deletefolder"],
       where: "Your classes. This is the home page, listing every class you've saved.",
       help:
         'On your classes you can say: "new class" to start one, ' +
         '"open" and a class name to jump straight in and hear it read back — ' +
         'for example, "open chapter four" — or "my last class" for the most ' +
         'recent one. "make a folder called" and a name to create a folder, ' +
+        '"delete the folder called" and a name to remove one — the classes ' +
+        "in it aren't deleted, they just become unsorted. " +
         '"let\'s make an account" to sync your classes across devices, ' +
         '"settings" to change the voice and reading speed, or "where am I". ' +
         "Press V any time to talk to Trace.",

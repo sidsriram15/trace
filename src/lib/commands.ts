@@ -31,7 +31,8 @@ export type VoiceAction =
   | "account"
   | "speed"
   | "toggle"
-  | "open";
+  | "open"
+  | "deletefolder";
 
 /**
  * A recognized command. `value` carries free text the student dictated, or
@@ -66,6 +67,7 @@ export const ACTION_DESCRIPTIONS: Record<VoiceAction, string> = {
   speed: "change the reading speed — value is \"faster\", \"slower\", or \"normal\"",
   toggle: "turn a setting on or off — value is \"haptics-on\", \"haptics-off\", \"guidance-on\", or \"guidance-off\"",
   open: "open a saved class by name and start reading it — value is the class name, or \"__last__\" for the most recently saved one",
+  deletefolder: "delete a folder — value is the folder name. Classes in it are not deleted, just become unsorted",
 };
 
 // Everything after one of these is treated as the class name (or, on the
@@ -92,6 +94,22 @@ const NAMING_PREFIXES = [
 
 // Dictation habitually tacks these onto the front of the spoken name.
 const NAME_FILLER = /^(is|as|to|it)\s+/;
+
+// Checked before FOLDER_PREFIXES — "delete the folder called science"
+// contains "the folder", which would otherwise be swallowed by the plain
+// folder-filing match below and misread as filing into a folder.
+const DELETE_FOLDER_PREFIXES = [
+  "delete the folder called",
+  "delete folder called",
+  "delete the folder",
+  "delete folder",
+  "remove the folder called",
+  "remove folder called",
+  "remove the folder",
+  "remove folder",
+  "get rid of the folder called",
+  "get rid of the folder",
+];
 
 // Same idea for filing a class into a folder: everything after the prefix
 // is the folder name, matched against the folders that actually exist.
@@ -338,6 +356,20 @@ export function matchCommand(
         .replace(NAME_FILLER, "")
         .trim();
       if (value) return { action: "name", value };
+    }
+  }
+
+  if (!allowed || allowed.includes("deletefolder")) {
+    for (const prefix of DELETE_FOLDER_PREFIXES) {
+      const at = said.indexOf(prefix);
+      if (at === -1) continue;
+      const value = said
+        .slice(at + prefix.length)
+        .trim()
+        .replace(FOLDER_LEAD, "")
+        .replace(FOLDER_SUFFIX, "")
+        .trim();
+      if (value) return { action: "deletefolder", value };
     }
   }
 

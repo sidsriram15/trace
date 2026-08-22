@@ -114,6 +114,21 @@ export default function Home() {
         }
         return;
       }
+
+      if (command.action === "deletefolder" && command.value) {
+        const said = simplify(command.value);
+        const match =
+          folders.find((f) => simplify(f.name) === said) ??
+          folders.find((f) => simplify(f.name).includes(said)) ??
+          folders.find((f) => said.includes(simplify(f.name)));
+        if (!match) {
+          speak(`I couldn't find a folder called ${command.value}.`);
+          return;
+        }
+        deleteFolder(match.id);
+        speak(`Deleted the ${match.name} folder. Its classes are still saved, just unsorted.`);
+        return;
+      }
     };
     window.addEventListener("trace:command", onCommand);
     return () => window.removeEventListener("trace:command", onCommand);
