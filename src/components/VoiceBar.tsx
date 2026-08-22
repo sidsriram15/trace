@@ -126,9 +126,7 @@ export function VoiceBar() {
   const label =
     listenState === "listening"
       ? "Listening — say a command"
-      : pathname === "/blind"
-        ? "Talk to Trace (press V)"
-        : "Talk to Trace (press space)";
+      : "Talk to Trace (press V)";
 
   return (
     <>

@@ -43,12 +43,12 @@ export default function NewClass() {
   // can't speak for you — knowing it's coming is the difference between
   // "the app is broken" and "press Allow".
   useSpokenGuidance(
-    "Starting a new class. Press the space bar to talk to Trace, then say " +
-      '"call it" and a name to name this class, or "put it in" and a folder ' +
-      'name to file it. Say "start class" when you\'re ready, or press the ' +
-      "Begin class button. Your browser will ask for camera and microphone " +
-      "permission — choose Allow. Then point the camera at the board, and " +
-      "Trace will read it out loud as the lesson unfolds.",
+    "Starting a new class. Press V to talk to Trace. " +
+      'Say "call it" and a name to name this class — for example, call it chapter four momentum. ' +
+      'Say "put it in" and a folder name to file it — for example, put it in science. ' +
+      'Say "start class" when you\'re ready, or press the Begin class button. ' +
+      "Your browser will ask for camera and microphone permission — choose Allow. " +
+      "Then point the camera at the board, and Trace will read it out loud as the lesson unfolds.",
   );
 
   const handleCreateFolder = () => {

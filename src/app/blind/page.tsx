@@ -14,15 +14,15 @@ function titleCase(value: string): string {
 }
 
 const HELP =
-  "During a class you can say: " +
+  "During a class you can say commands hands-free by saying Trace first. For example: " +
   '"Trace, pause" to stop it reading and stop it watching the board, ' +
   '"Trace, resume" to start again, ' +
   '"Trace, repeat" to hear the last thing again, ' +
-  '"Trace, call it" and a name to rename this class, ' +
+  '"Trace, call it" and a name to rename this class — for example, Trace, call it chapter four, ' +
   '"Trace, where am I" to hear what is going on, ' +
   'or "Trace, end class" to save it and finish. ' +
-  "On the keyboard: space bar pauses and resumes, R repeats, E ends the " +
-  "class, and H repeats this list.";
+  "You can also press V on the keyboard to give a command without saying Trace first. " +
+  "Other keyboard shortcuts: space bar pauses and resumes, R repeats, E ends the class, and H repeats this list.";
 
 export default function BlindMode() {
   return (
@@ -48,7 +48,8 @@ function BlindModeInner() {
   // loaded and what to do while the camera connects.
   useSpokenGuidance(
     "Class starting. Opening the camera — point it at the whiteboard. " +
-      'Say "Trace, help" any time to hear what you can ask for, or press H on the keyboard.',
+      'Say "Trace, help" any time to hear what you can ask for. ' +
+      "Press H on the keyboard to hear what you can say, or press V to give a command.",
   );
 
   const [paused, setPaused] = useState(false);
@@ -293,8 +294,7 @@ function BlindModeInner() {
         </button>
       </div>
       <p className="mt-3 font-mono text-xs leading-6 tracking-wide text-faint uppercase">
-        Space pauses · R repeats · E ends · H lists everything — or say
-        &ldquo;Trace, help&rdquo;
+        Space pauses · R repeats · E ends · H lists everything · V gives a command
       </p>
 
       {/* Aiming the camera is the one part of this a blind student may need

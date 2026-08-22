@@ -141,10 +141,20 @@ export function useVoiceCommands(options: {
 
       const key = e.key.toLowerCase();
       const isSpace = e.code === "Space" || key === " ";
-      if (isSpace && (!spaceToTalk || (target instanceof HTMLElement && target.closest("button")))) {
+      const isV = key === "v";
+
+      // V always opens voice — a blind user navigating by Tab has buttons
+      // focused, and space activates the button instead of the mic. V is the
+      // guaranteed-to-work key and must never be blocked by focus state.
+      if (isV) {
+        e.preventDefault();
+        start();
         return;
       }
-      if (key === "v" || isSpace) {
+
+      // Space opens voice only when spaceToTalk is on AND no button has
+      // focus (so the browser can still use space to activate buttons).
+      if (isSpace && spaceToTalk && !(target instanceof HTMLElement && target.closest("button"))) {
         e.preventDefault();
         start();
       }

@@ -57,8 +57,8 @@ export default function Home() {
 
   useSpokenGuidance(
     sessions.length === 0
-      ? 'Your classes. Nothing saved yet. Press the space bar to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.'
-      : `Your classes. ${sessions.length} saved. Press the space bar to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.`,
+      ? 'Your classes. Nothing saved yet. Press V to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.'
+      : `Your classes. ${sessions.length} saved. Press V to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.`,
   );
 
   const handleCreateFolder = () => {
