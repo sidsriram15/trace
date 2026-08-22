@@ -31,7 +31,11 @@ export function useLessonPlayback(items: PlaybackItem[]) {
     const item = itemsRef.current[i];
     if (!item) return;
     const intro = item.erased ? "Board erased and rewritten. " : "";
-    const text = `${intro}${item.heading ? item.heading + ". " : ""}${item.narration}`;
+    // Only announce the heading when it's new — repeating the same one
+    // before every entry buries the actual content in filler.
+    const prevHeading = itemsRef.current[i - 1]?.heading;
+    const showHeading = item.heading && item.heading !== prevHeading;
+    const text = `${intro}${showHeading ? item.heading + ". " : ""}${item.narration}`;
     speak(text, () => {
       if (!playingRef.current) return;
       const next = i + 1;
