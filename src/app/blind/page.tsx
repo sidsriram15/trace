@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTraceSession } from "@/hooks/useTraceSession";
 import { speak, stopSpeaking } from "@/lib/speech";
 import { useFolders } from "@/lib/folders";
+import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
 import type { VoiceCommand } from "@/lib/commands";
 
 /** Spoken names arrive lowercased from the recognizer. */
@@ -42,6 +43,13 @@ function BlindModeInner() {
   const folderName = folderId
     ? folders.find((f) => f.id === folderId)?.name
     : undefined;
+
+  // Announce on arrival — a blind student has no other way to know the page
+  // loaded and what to do while the camera connects.
+  useSpokenGuidance(
+    "Class starting. Opening the camera — point it at the whiteboard. " +
+      'Say "Trace, help" any time to hear what you can ask for, or press H on the keyboard.',
+  );
 
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
@@ -159,18 +167,24 @@ function BlindModeInner() {
     }
   }, [states]);
 
-  // Announce session start / camera problems aloud too
+  // Announce camera ready and errors aloud — visual status indicators are
+  // useless here. Delay the "live" message so it doesn't overlap with
+  // useSpokenGuidance's intro.
+  const announcedLive = useRef(false);
   useEffect(() => {
-    if (status === "live") {
+    if (status === "live" && !announcedLive.current) {
+      announcedLive.current = true;
       const name = [folderName, title].filter(Boolean).join(", ");
-      speak(
-        (name
-          ? `Trace is live and watching the board, for ${name}. `
-          : "Trace is live and watching the board. ") +
-          'Say "Trace, help" any time to hear what you can ask for.',
-      );
-    } else if (status === "error" && error) speak(error);
-    // Only announce once, when the session first goes live.
+      setTimeout(() => {
+        speak(
+          name
+            ? `Camera ready. Watching the board for ${name}.`
+            : "Camera ready. Watching the board.",
+        );
+      }, 1800);
+    } else if (status === "error" && error) {
+      speak(`Camera problem: ${error}`);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, error]);
 
