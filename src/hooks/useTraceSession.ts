@@ -55,6 +55,12 @@ export const IN_CLASS_COMMANDS = [
 export function useTraceSession(meta?: {
   folderId?: string;
   title?: string;
+  /**
+   * Pause the class outright: stop reading the board and stop capturing it.
+   * Recognition keeps running regardless, or there would be no way to say
+   * "resume".
+   */
+  paused?: boolean;
   onCommand?: (command: VoiceCommand) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -91,10 +97,18 @@ export function useTraceSession(meta?: {
   useEffect(() => {
     onCommandRef.current = meta?.onCommand;
   }, [meta?.onCommand]);
+  // Read inside the capture loop and the transcript handler, both of which
+  // outlive any single render.
+  const pausedRef = useRef(false);
+  useEffect(() => {
+    pausedRef.current = meta?.paused ?? false;
+  }, [meta?.paused]);
 
   const analyze = useCallback(async (force = false) => {
     const video = videoRef.current;
     if (!video || inFlight.current) return;
+    // Paused means paused: no frames captured, nothing sent, nothing billed.
+    if (pausedRef.current) return;
 
     const print = fingerprint(video);
     if (!print) return;
@@ -238,7 +252,7 @@ export function useTraceSession(meta?: {
           setInterim("");
           return;
         }
-        setInterim(text);
+        setInterim(pausedRef.current ? "" : text);
       },
       onFinal: (text) => {
         // The lecture recognizer is the only thing holding the mic during a
@@ -249,6 +263,8 @@ export function useTraceSession(meta?: {
         if (tryCommand(text, true)) return;
         // Addressed to Trace but not understood — don't file it as lecture.
         if (isWakePhrase(text)) return;
+        // While paused, keep listening for "resume" but record none of it.
+        if (pausedRef.current) return;
 
         const entry = { time: now(), text };
         transcriptRef.current = [...transcriptRef.current, entry].slice(-50);

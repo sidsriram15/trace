@@ -24,7 +24,8 @@ export type VoiceAction =
   | "next"
   | "previous"
   | "status"
-  | "name";
+  | "name"
+  | "folder";
 
 /**
  * A recognized command. `value` carries free text the student dictated —
@@ -55,6 +56,32 @@ const NAMING_PREFIXES = [
 
 // Dictation habitually tacks these onto the front of the spoken name.
 const NAME_FILLER = /^(is|as|to|it)\s+/;
+
+// Same idea for filing a class into a folder: everything after the prefix
+// is the folder name, matched against the folders that actually exist.
+const FOLDER_PREFIXES = [
+  "put this in the",
+  "put this in",
+  "put it in the",
+  "put it in",
+  "file this under",
+  "file it under",
+  "file under",
+  "move it to",
+  "move this to",
+  "add it to",
+  "add this to",
+  "folder is",
+  "the folder",
+  "folder",
+];
+
+// Trailing words students add after the folder name, e.g. "put it in the
+// science folder".
+const FOLDER_SUFFIX = /\s+(folder|class|classes)$/;
+
+// ...and the same at the front: "put it in the folder called science".
+const FOLDER_LEAD = /^(the\s+)?(folder\s+)?(called\s+|named\s+)?/;
 
 // Longest phrases first within each action so "start over" doesn't get
 // swallowed by "start". Order across actions matters too: the first action
@@ -119,6 +146,20 @@ export function matchCommand(
         .replace(NAME_FILLER, "")
         .trim();
       if (value) return { action: "name", value };
+    }
+  }
+
+  if (!allowed || allowed.includes("folder")) {
+    for (const prefix of FOLDER_PREFIXES) {
+      const at = said.indexOf(prefix);
+      if (at === -1) continue;
+      const value = said
+        .slice(at + prefix.length)
+        .trim()
+        .replace(FOLDER_LEAD, "")
+        .replace(FOLDER_SUFFIX, "")
+        .trim();
+      if (value) return { action: "folder", value };
     }
   }
 

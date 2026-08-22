@@ -14,6 +14,12 @@ export type Settings = {
   haptics: boolean;
   /** Speak page instructions on arrival. */
   spokenGuidance: boolean;
+  /**
+   * SpeechSynthesis voiceURI, or "" for whatever the system picks. Which
+   * voices exist depends on the device, so this is stored as the URI and
+   * falls back to the default whenever that voice isn't installed here.
+   */
+  voiceURI: string;
 };
 
 export const SPEECH_RATES = [0.75, 1, 1.25, 1.5, 2, 2.5, 3] as const;
@@ -25,6 +31,7 @@ const DEFAULTS: Settings = {
   speechRate: 1,
   haptics: true,
   spokenGuidance: true,
+  voiceURI: "",
 };
 
 let cache: Settings = DEFAULTS;

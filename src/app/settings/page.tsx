@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SPEECH_RATES, updateSettings, useSettings } from "@/lib/settings";
-import { speak } from "@/lib/speech";
+import { availableVoices, onVoicesReady, speak } from "@/lib/speech";
 import { deleteAccountData, signOut, useAccount } from "@/lib/account";
 import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
 
@@ -41,6 +41,10 @@ export default function SettingsPage() {
   const settings = useSettings();
   const account = useAccount();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Chrome populates the voice list asynchronously, so this starts empty
+  // and fills in once the engine reports what the device has.
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  useEffect(() => onVoicesReady(() => setVoices(availableVoices())), []);
 
   useSpokenGuidance(
     "Settings. You can change how fast Trace reads to you, turn vibration " +
@@ -106,6 +110,73 @@ export default function SettingsPage() {
         >
           Hear a sample
         </button>
+      </section>
+
+      <section aria-labelledby="voice" className="mt-16">
+        <h2
+          id="voice"
+          className="font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase"
+        >
+          Voice
+        </h2>
+        <p className="mt-3 max-w-xl text-base leading-7 text-muted">
+          Which voice reads the board to you. You&apos;ll be listening to this
+          for a whole lesson, so pick one you can stand. Each one speaks as
+          soon as you choose it.
+        </p>
+
+        <fieldset className="mt-6 border-t border-line pt-6">
+          <legend className="sr-only">Voice</legend>
+          <div className="flex flex-wrap gap-3">
+            <label
+              className={`cursor-pointer border-2 px-5 py-3 text-lg font-medium ${
+                settings.voiceURI === ""
+                  ? "border-line bg-foreground text-background"
+                  : "border-line-soft hover:border-line"
+              }`}
+            >
+              <input
+                type="radio"
+                name="voice"
+                className="sr-only"
+                checked={settings.voiceURI === ""}
+                onChange={() => {
+                  updateSettings({ voiceURI: "" });
+                  speak(SAMPLE);
+                }}
+              />
+              Default
+            </label>
+            {voices.map((voice) => (
+              <label
+                key={voice.voiceURI}
+                className={`cursor-pointer border-2 px-5 py-3 text-lg font-medium ${
+                  settings.voiceURI === voice.voiceURI
+                    ? "border-line bg-foreground text-background"
+                    : "border-line-soft hover:border-line"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="voice"
+                  className="sr-only"
+                  checked={settings.voiceURI === voice.voiceURI}
+                  onChange={() => {
+                    updateSettings({ voiceURI: voice.voiceURI });
+                    speak(SAMPLE);
+                  }}
+                />
+                {voice.name}
+              </label>
+            ))}
+          </div>
+          {voices.length === 0 && (
+            <p className="mt-4 text-base leading-7 text-faint">
+              No other voices are installed on this device, so Trace will use
+              the system default.
+            </p>
+          )}
+        </fieldset>
       </section>
 
       <section aria-labelledby="feedback" className="mt-16">

@@ -265,6 +265,25 @@ export function listen(listener: SpeechListener): () => void {
   };
 }
 
+/**
+ * Voices the device actually has. The list is populated asynchronously in
+ * Chrome, so this can be empty on a first call — `onVoicesReady` covers
+ * that.
+ */
+export function availableVoices(): SpeechSynthesisVoice[] {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return [];
+  return window.speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en"));
+}
+
+/** Fires when the voice list arrives, and once immediately if it already has. */
+export function onVoicesReady(callback: () => void): () => void {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return () => {};
+  const synth = window.speechSynthesis;
+  if (synth.getVoices().length) callback();
+  synth.addEventListener("voiceschanged", callback);
+  return () => synth.removeEventListener("voiceschanged", callback);
+}
+
 /** Speak text aloud, replacing anything currently being spoken. */
 export function speak(text: string, onEnd?: () => void) {
   if (typeof window === "undefined" || !("speechSynthesis" in window) || !text) {
@@ -272,12 +291,19 @@ export function speak(text: string, onEnd?: () => void) {
     return;
   }
   const synth = window.speechSynthesis;
-  const rate = getSettings().speechRate;
+  const { speechRate: rate, voiceURI } = getSettings();
 
   synth.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = rate;
+  if (voiceURI) {
+    // Falls back to the system voice when the chosen one isn't installed on
+    // this device — voice lists differ per machine, and a stale preference
+    // must not leave narration silent.
+    const voice = synth.getVoices().find((v) => v.voiceURI === voiceURI);
+    if (voice) utterance.voice = voice;
+  }
 
   let finished = false;
   const finish = () => {

@@ -27,6 +27,11 @@ export function useVoiceCommands(options: {
   /** Spoken when the student asks what they can say here. */
   help: string;
   enabled?: boolean;
+  /**
+   * Whether the space bar opens the microphone. Off during a class, where
+   * space is pause — the thing you need to reach instantly there.
+   */
+  spaceToTalk?: boolean;
 }) {
   const [listenState, setListenState] = useState<ListenState>("idle");
   const [heard, setHeard] = useState<string | null>(null);
@@ -114,9 +119,12 @@ export function useVoiceCommands(options: {
     };
   }, [stop]);
 
-  // "V" anywhere opens the mic, so voice commands don't depend on finding a
-  // button first. Skipped while typing, and while a modifier is held so it
-  // can't shadow a browser or screen-reader shortcut.
+  // The space bar opens the microphone, because it's the key someone finds
+  // without being told; V does the same for anyone who'd rather not have
+  // space taken over. Skipped while typing, on a focused button (space
+  // belongs to the button then), and while a modifier is held so it can't
+  // shadow a browser or screen-reader shortcut.
+  const spaceToTalk = options.spaceToTalk !== false;
   useEffect(() => {
     if (options.enabled === false) return;
     const onKey = (e: KeyboardEvent) => {
@@ -130,14 +138,20 @@ export function useVoiceCommands(options: {
           target.tagName === "SELECT")
       )
         return;
-      if (e.key.toLowerCase() === "v") {
+
+      const key = e.key.toLowerCase();
+      const isSpace = e.code === "Space" || key === " ";
+      if (isSpace && (!spaceToTalk || (target instanceof HTMLElement && target.closest("button")))) {
+        return;
+      }
+      if (key === "v" || isSpace) {
         e.preventDefault();
         start();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [start, options.enabled]);
+  }, [start, options.enabled, spaceToTalk]);
 
   useEffect(() => () => sessionRef.current?.cancel(), []);
 

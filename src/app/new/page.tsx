@@ -12,6 +12,24 @@ function titleCase(value: string): string {
   return value.replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
+const simplify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * Find the folder a student meant. Exact match first, then containment,
+ * so "science" reaches "Science 9" and "put it in my science folder"
+ * doesn't miss because of the extra words.
+ */
+function findFolder<T extends { name: string }>(folders: T[], spoken: string): T | null {
+  const said = simplify(spoken);
+  if (!said) return null;
+  return (
+    folders.find((f) => simplify(f.name) === said) ??
+    folders.find((f) => simplify(f.name).includes(said)) ??
+    folders.find((f) => said.includes(simplify(f.name))) ??
+    null
+  );
+}
+
 export default function NewClass() {
   const router = useRouter();
   const folders = useFolders();
@@ -25,11 +43,12 @@ export default function NewClass() {
   // can't speak for you — knowing it's coming is the difference between
   // "the app is broken" and "press Allow".
   useSpokenGuidance(
-    "Starting a new class. Press V and say \"call it\" followed by a name to " +
-      "name this class, or skip that. Say \"start class\", or press Begin " +
-      "class, when you're ready. Your browser will ask for camera and " +
-      "microphone permission — choose Allow. Then point the camera at the " +
-      "board, and Trace will read it out loud as the lesson unfolds.",
+    "Starting a new class. Press the space bar to talk to Trace, then say " +
+      '"call it" and a name to name this class, or "put it in" and a folder ' +
+      'name to file it. Say "start class" when you\'re ready, or press the ' +
+      "Begin class button. Your browser will ask for camera and microphone " +
+      "permission — choose Allow. Then point the camera at the board, and " +
+      "Trace will read it out loud as the lesson unfolds.",
   );
 
   const handleCreateFolder = () => {
@@ -59,13 +78,25 @@ export default function NewClass() {
         const named = titleCase(command.value);
         setTitle(named);
         speak(`Called it ${named}. Say "start class" when you're ready.`);
+      } else if (command?.action === "folder" && command.value) {
+        const existing = findFolder(folders, command.value);
+        if (existing) {
+          setSelectedFolder(existing.id);
+          speak(`Filed under ${existing.name}.`);
+        } else {
+          // Naming a folder that doesn't exist yet creates it — otherwise
+          // the only way to make one is to find the button on screen.
+          const created = createFolder(titleCase(command.value));
+          setSelectedFolder(created.id);
+          speak(`Made a new folder called ${created.name}, and filed this class in it.`);
+        }
       } else if (command?.action === "play") {
         begin();
       }
     };
     window.addEventListener("trace:command", onCommand);
     return () => window.removeEventListener("trace:command", onCommand);
-  }, [begin]);
+  }, [begin, folders]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-12">

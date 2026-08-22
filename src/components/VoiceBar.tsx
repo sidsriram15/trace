@@ -19,13 +19,18 @@ function commandsFor(pathname: string): {
     return {
       allowed: nav,
       where: "Your classes. This is the home page, listing every class you've saved.",
-      help: 'On your classes you can say: "new class" to start one, "settings", or "where am I". Press V any time to talk to Trace.',
+      help: 'On your classes you can say: "new class" to start one, "settings" to change the voice and reading speed, or "where am I". Press the space bar any time to talk to Trace.',
     };
   if (pathname === "/new")
     return {
-      allowed: [...nav, "name", "play"],
+      allowed: [...nav, "name", "folder", "play"],
       where: "Starting a new class. Choose a folder, name it, or begin straight away.",
-      help: 'Here you can say: "call it" followed by a name — for example "call it chapter four momentum" — then "start class" to begin. You can also say "my classes" to go back, or "settings".',
+      help:
+        "Here you can say four things. " +
+        'One: "call it" and a name, for example "call it chapter four momentum". ' +
+        'Two: "put it in" and a folder, for example "put it in science" — if that folder does not exist yet, Trace makes it. ' +
+        'Three: "start class" to begin. ' +
+        'Four: "my classes" to go back, or "settings".',
     };
   if (pathname === "/settings")
     return {
@@ -49,7 +54,16 @@ function commandsFor(pathname: string): {
     return {
       allowed: ["pause", "resume", "repeat", "end", "help", "status", "name"],
       where: "A class in progress. Trace is watching the board.",
-      help: 'During a class you can say: "pause", "resume", "repeat", "call it" followed by a name, "where am I", or "end class". You can also just say "Trace, pause" without pressing anything.',
+      help:
+        "During a class you can say: " +
+        '"pause" to stop Trace reading and stop it watching the board, ' +
+        '"resume" to start again, ' +
+        '"repeat" to hear the last thing again, ' +
+        '"call it" and a name to rename this class, ' +
+        '"where am I" to hear what is going on, ' +
+        'or "end class" to save it and finish. ' +
+        'Any of these also work hands-free by saying "Trace" first, for example "Trace, pause". ' +
+        "On the keyboard: space bar pauses and resumes, R repeats, E ends the class, and H repeats this list.",
     };
   return {
     allowed: nav,
@@ -76,6 +90,8 @@ export function VoiceBar() {
   const { listenState, heard, listen } = useVoiceCommands({
     allowed,
     help,
+    // In a class the space bar pauses; everywhere else it opens the mic.
+    spaceToTalk: pathname !== "/blind",
     onCommand: (command) => {
       switch (command.action) {
         case "home":
@@ -110,7 +126,9 @@ export function VoiceBar() {
   const label =
     listenState === "listening"
       ? "Listening — say a command"
-      : "Voice command (press V)";
+      : pathname === "/blind"
+        ? "Talk to Trace (press V)"
+        : "Talk to Trace (press space)";
 
   return (
     <>

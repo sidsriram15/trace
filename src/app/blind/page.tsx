@@ -13,10 +13,15 @@ function titleCase(value: string): string {
 }
 
 const HELP =
-  'While a class is running you can say: "Trace, pause" to stop the narration, ' +
-  '"Trace, resume" to start it again, "Trace, repeat" to hear the last update ' +
-  'once more, "Trace, where am I", or "Trace, end class". You can also press ' +
-  "Space to pause, R to repeat, and H for this list.";
+  "During a class you can say: " +
+  '"Trace, pause" to stop it reading and stop it watching the board, ' +
+  '"Trace, resume" to start again, ' +
+  '"Trace, repeat" to hear the last thing again, ' +
+  '"Trace, call it" and a name to rename this class, ' +
+  '"Trace, where am I" to hear what is going on, ' +
+  'or "Trace, end class" to save it and finish. ' +
+  "On the keyboard: space bar pauses and resumes, R repeats, E ends the " +
+  "class, and H repeats this list.";
 
 export default function BlindMode() {
   return (
@@ -43,6 +48,8 @@ function BlindModeInner() {
   const spokenCount = useRef(0);
   const latestRef = useRef<{ narration: string } | null>(null);
   const endRef = useRef<() => void>(() => {});
+  // Read inside `finish`, which is built before `states` exists.
+  const statesRef = useRef<unknown[]>([]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -71,11 +78,11 @@ function BlindModeInner() {
         }
         case "pause":
           togglePause(true);
-          speak("Paused.");
+          speak("Paused. Not reading or watching the board. Say resume to start again.");
           break;
         case "resume":
           togglePause(false);
-          speak("Listening to the board again.");
+          speak("Watching the board again.");
           break;
         case "repeat":
           if (latestRef.current) speak(latestRef.current.narration);
@@ -111,11 +118,21 @@ function BlindModeInner() {
     interim,
     speechError,
     micLabel,
+    analyzing,
     endSession,
-  } = useTraceSession({ folderId, title, onCommand: runCommand });
+  } = useTraceSession({ folderId, title, paused, onCommand: runCommand });
 
   const finish = useCallback(() => {
     stopSpeaking();
+    // A class with nothing on the board isn't saved. Saying so is the
+    // difference between "ended, nothing to keep" and "the button is
+    // broken" — there is nothing on screen afterwards to tell them apart.
+    const captured = statesRef.current.length;
+    speak(
+      captured === 0
+        ? "Class ended. Nothing was captured from the board, so there was nothing to save."
+        : `Class ended and saved, with ${captured} board update${captured === 1 ? "" : "s"}.`,
+    );
     endSession();
     router.push("/");
   }, [endSession, router]);
@@ -126,6 +143,9 @@ function BlindModeInner() {
   useEffect(() => {
     latestRef.current = latest;
   }, [latest]);
+  useEffect(() => {
+    statesRef.current = states;
+  }, [states]);
   useEffect(() => {
     endRef.current = finish;
   }, [finish]);
@@ -168,12 +188,23 @@ function BlindModeInner() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.target instanceof HTMLElement && e.target.closest("button, input"))
-        return;
+      const target = e.target;
+      const typing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
+      if (typing) return;
+
       if (e.code === "Space") {
+        // A focused button already activates on Space. Letting the browser
+        // do it avoids toggling twice — but the letter keys below must
+        // still work after a button has been clicked, which is why this
+        // check is scoped to Space rather than skipping every key.
+        if (target instanceof HTMLElement && target.closest("button")) return;
         e.preventDefault();
         runCommand({ action: pausedRef.current ? "resume" : "pause" });
       } else if (e.key.toLowerCase() === "r") runCommand({ action: "repeat" });
+      else if (e.key.toLowerCase() === "e") runCommand({ action: "end" });
       else if (e.key.toLowerCase() === "h") runCommand({ action: "help" });
     };
     window.addEventListener("keydown", onKey);
@@ -182,9 +213,6 @@ function BlindModeInner() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-6 py-10">
-      {/* Camera still watches the board; the feed itself isn't the product here */}
-      <video ref={videoRef} muted playsInline className="sr-only" aria-hidden="true" />
-
       <div className="flex items-center justify-between gap-4">
         <div>
           {(folderName || title) && (
@@ -196,27 +224,17 @@ function BlindModeInner() {
             {title || "Class in progress"}
           </h1>
         </div>
-        <div className="flex items-center gap-4">
-          <p className="font-mono text-sm tracking-wide uppercase">
-            {stopped
-              ? "Class ended"
-              : status === "starting"
-                ? "Starting"
-                : status === "error"
-                  ? "Camera off"
-                  : paused
-                    ? "Paused"
-                    : "Narrating"}
-          </p>
-          {!stopped && (
-            <button
-              onClick={finish}
-              className="border border-line px-3 py-1.5 font-mono text-xs tracking-wide uppercase hover:bg-foreground hover:text-background"
-            >
-              End class
-            </button>
-          )}
-        </div>
+        <p className="font-mono text-sm tracking-wide uppercase">
+          {stopped
+            ? "Class ended"
+            : status === "starting"
+              ? "Starting"
+              : status === "error"
+                ? "Camera off"
+                : paused
+                  ? "Paused"
+                  : "Narrating"}
+        </p>
       </div>
 
       {/* Current narration — the primary object */}
@@ -245,19 +263,58 @@ function BlindModeInner() {
         )}
       </section>
 
-      <div className="mt-8">
+      <div className="mt-8 grid gap-3 sm:grid-cols-2">
         <button
           onClick={() => runCommand({ action: paused ? "resume" : "pause" })}
-          className="w-full border-2 border-line bg-foreground px-6 py-5 text-xl font-semibold text-background hover:bg-muted"
+          className="border-2 border-line bg-foreground px-6 py-5 text-xl font-semibold text-background hover:bg-muted"
         >
-          {paused ? "Resume narration" : "Pause narration"}
+          {paused ? "Resume class" : "Pause class"}
+        </button>
+        <button
+          onClick={finish}
+          disabled={stopped}
+          className="border-2 border-line px-6 py-5 text-xl font-semibold hover:bg-surface disabled:border-line-soft disabled:text-faint"
+        >
+          End class &amp; save
         </button>
       </div>
       <p className="mt-3 font-mono text-xs leading-6 tracking-wide text-faint uppercase">
-        Say &ldquo;Trace, pause&rdquo; · &ldquo;Trace, repeat&rdquo; ·
-        &ldquo;Trace, end class&rdquo; — or press Space to pause, R to
-        repeat, H for the full list
+        Space pauses · R repeats · E ends · H lists everything — or say
+        &ldquo;Trace, help&rdquo;
       </p>
+
+      {/* Aiming the camera is the one part of this a blind student may need
+          a sighted person for, so what it sees has to be on screen. */}
+      <section aria-label="What the camera sees" className="mt-12">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
+          <h2 className="font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
+            What the camera sees
+          </h2>
+          <p className="font-mono text-xs tracking-wide text-faint uppercase">
+            {paused ? "Paused" : analyzing ? "Reading the board" : "Watching"}
+          </p>
+        </div>
+        <div className="relative mt-4 aspect-video w-full border border-line bg-surface">
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            className="absolute inset-0 h-full w-full object-contain"
+          />
+          {status !== "live" && (
+            <div className="absolute inset-0 flex items-center justify-center p-8">
+              <p className="max-w-md text-center text-lg leading-8 text-muted">
+                {error ?? "Starting the camera…"}
+              </p>
+            </div>
+          )}
+          {paused && status === "live" && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+              <p className="text-xl font-semibold">Paused</p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Proof the microphone is actually working. Without something on
           screen, a silent failure and a silent classroom look identical. */}
