@@ -398,10 +398,10 @@ function BlindModeInner() {
             )}
           </div>
         ) : (
-          <p className="mt-5 text-base leading-7 text-faint">
-            Still listening in the background. Hidden since it&apos;s not
-            meant to be read — press &ldquo;Show transcript&rdquo; if a
-            sighted person wants to check it.
+          <p className="mt-5 truncate text-base leading-7 text-faint">
+            {interim || transcript[transcript.length - 1]?.text
+              ? `Still listening — "${(interim || transcript[transcript.length - 1]?.text || "").slice(0, 90)}"`
+              : "Still listening. Nothing said yet."}
           </p>
         )}
       </section>
