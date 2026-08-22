@@ -28,12 +28,15 @@ export type VoiceAction =
   | "folder"
   | "pin"
   | "submit"
-  | "account";
+  | "account"
+  | "speed"
+  | "toggle"
+  | "open";
 
 /**
- * A recognized command. `value` carries free text the student dictated —
- * "name", "folder", "pin", and "submit" all use it, but the shape is what
- * lets a command be more than a fixed phrase.
+ * A recognized command. `value` carries free text the student dictated, or
+ * for "speed"/"toggle" one of a fixed set of keys ("faster"/"slower"/
+ * "normal", "haptics-on"/"haptics-off"/"guidance-on"/"guidance-off").
  */
 export type VoiceCommand = { action: VoiceAction; value?: string };
 
@@ -161,6 +164,72 @@ const ACCOUNT_PHRASES: [string, string[]][] = [
   ["signin", ["sign in", "log in", "sign me in", "log me in"]],
 ];
 
+// Reading speed, by voice — relative rather than a spoken number, since
+// "one point five" is much easier to mishear than "faster".
+const SPEED_PHRASES: [string, string[]][] = [
+  ["faster", ["read faster", "speak faster", "go faster", "speed up", "faster"]],
+  ["slower", ["read slower", "speak slower", "go slower", "slow down", "slower"]],
+  ["normal", ["normal speed", "reset the speed", "reset speed", "default speed"]],
+];
+
+// On/off settings, by voice.
+const TOGGLE_PHRASES: [string, string[]][] = [
+  ["haptics-on", ["turn on vibration", "turn vibration on", "enable vibration", "vibration on"]],
+  ["haptics-off", ["turn off vibration", "turn vibration off", "disable vibration", "vibration off"]],
+  [
+    "guidance-on",
+    [
+      "turn on spoken guidance",
+      "turn spoken guidance on",
+      "enable spoken guidance",
+      "spoken guidance on",
+    ],
+  ],
+  [
+    "guidance-off",
+    [
+      "turn off spoken guidance",
+      "turn spoken guidance off",
+      "disable spoken guidance",
+      "spoken guidance off",
+    ],
+  ],
+];
+
+// Jumping straight into a saved class from the list, by name or "the last
+// class". Checked last, after the fixed vocabulary, so a bare "open" or
+// "read" doesn't swallow "open settings" or "read that again" — those are
+// specific commands and should win over this catch-all.
+const LAST_CLASS_PHRASES = [
+  "my last class",
+  "the last class",
+  "most recent class",
+  "latest class",
+  "last class",
+];
+
+const OPEN_PREFIXES = [
+  "open the class called",
+  "open my class called",
+  "open class called",
+  "play the class called",
+  "play my class called",
+  "read the class called",
+  "read my class called",
+  "go to the class called",
+  "go to my class called",
+  "go into the class called",
+  "go into my class called",
+  "open the class",
+  "open my class",
+  "open",
+  "play",
+  "read",
+];
+
+const OPEN_LEAD = /^(the\s+)?(class\s+)?(called\s+|named\s+)?/;
+const OPEN_SUFFIX = /\s+(class|lesson)$/;
+
 // Longest phrases first within each action so "start over" doesn't get
 // swallowed by "start". Order across actions matters too: the first action
 // whose phrase is found wins, so put specific ones above generic ones.
@@ -273,10 +342,43 @@ export function matchCommand(
     }
   }
 
+  if (!allowed || allowed.includes("speed")) {
+    for (const [value, phrases] of SPEED_PHRASES) {
+      if (phrases.some((p) => said.includes(p))) return { action: "speed", value };
+    }
+  }
+
+  if (!allowed || allowed.includes("toggle")) {
+    for (const [value, phrases] of TOGGLE_PHRASES) {
+      if (phrases.some((p) => said.includes(p))) return { action: "toggle", value };
+    }
+  }
+
   for (const [action, phrases] of VOCABULARY) {
     if (allowed && !allowed.includes(action)) continue;
     if (phrases.some((p) => said.includes(p))) return { action };
   }
+
+  // Last resort, checked after every fixed command: jump straight into a
+  // saved class by name. Below the fixed vocabulary so a bare "open" or
+  // "read" never shadows "open settings" or "read that again".
+  if (!allowed || allowed.includes("open")) {
+    if (LAST_CLASS_PHRASES.some((p) => said.includes(p))) {
+      return { action: "open", value: "__last__" };
+    }
+    for (const prefix of OPEN_PREFIXES) {
+      const at = said.indexOf(prefix);
+      if (at === -1) continue;
+      const value = said
+        .slice(at + prefix.length)
+        .trim()
+        .replace(OPEN_LEAD, "")
+        .replace(OPEN_SUFFIX, "")
+        .trim();
+      if (value) return { action: "open", value };
+    }
+  }
+
   return null;
 }
 

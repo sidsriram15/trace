@@ -6,6 +6,7 @@ import { SPEECH_RATES, updateSettings, useSettings } from "@/lib/settings";
 import { availableVoices, onVoicesReady, speak } from "@/lib/speech";
 import { deleteAccountData, signOut, useAccount } from "@/lib/account";
 import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
+import type { VoiceCommand } from "@/lib/commands";
 
 const SAMPLE =
   "This is how Trace will read the board to you. The teacher has written the quadratic formula.";
@@ -48,8 +49,47 @@ export default function SettingsPage() {
 
   useSpokenGuidance(
     "Settings. You can change how fast Trace reads to you, turn vibration " +
-      "and spoken guidance on or off, and manage your account.",
+      "and spoken guidance on or off, and manage your account. This whole " +
+      'page works by voice — press V, then say "help" to hear how.',
   );
+
+  // Reading speed and the two toggles, by voice — so this page doesn't
+  // require finding and operating a radio group or checkbox by hand.
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const command = (e as CustomEvent<VoiceCommand>).detail;
+      if (!command) return;
+      if (command.action === "speed") {
+        if (command.value === "normal") {
+          updateSettings({ speechRate: 1 });
+        } else {
+          const i = (SPEECH_RATES as readonly number[]).indexOf(settings.speechRate);
+          const next =
+            command.value === "faster"
+              ? SPEECH_RATES[Math.min(i + 1, SPEECH_RATES.length - 1)]
+              : SPEECH_RATES[Math.max(i - 1, 0)];
+          updateSettings({ speechRate: next });
+        }
+        speak(SAMPLE);
+      } else if (command.action === "toggle") {
+        if (command.value === "haptics-on") {
+          updateSettings({ haptics: true });
+          speak("Vibration on.");
+        } else if (command.value === "haptics-off") {
+          updateSettings({ haptics: false });
+          speak("Vibration off.");
+        } else if (command.value === "guidance-on") {
+          updateSettings({ spokenGuidance: true });
+          speak("Spoken guidance on.");
+        } else if (command.value === "guidance-off") {
+          updateSettings({ spokenGuidance: false });
+          speak("Spoken guidance off.");
+        }
+      }
+    };
+    window.addEventListener("trace:command", onCommand);
+    return () => window.removeEventListener("trace:command", onCommand);
+  }, [settings.speechRate]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-12">

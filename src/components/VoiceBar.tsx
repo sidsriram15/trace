@@ -17,14 +17,16 @@ function commandsFor(pathname: string): {
 
   if (pathname === "/")
     return {
-      allowed: [...nav, "folder"],
+      allowed: [...nav, "folder", "open"],
       where: "Your classes. This is the home page, listing every class you've saved.",
       help:
         'On your classes you can say: "new class" to start one, ' +
-        '"make a folder called" and a name to create a folder — for example, ' +
-        '"make a folder called science" — "let\'s make an account" to sync ' +
-        'your classes across devices, "settings" to change the voice and ' +
-        'reading speed, or "where am I". Press V any time to talk to Trace.',
+        '"open" and a class name to jump straight in and hear it read back — ' +
+        'for example, "open chapter four" — or "my last class" for the most ' +
+        'recent one. "make a folder called" and a name to create a folder, ' +
+        '"let\'s make an account" to sync your classes across devices, ' +
+        '"settings" to change the voice and reading speed, or "where am I". ' +
+        "Press V any time to talk to Trace.",
     };
   if (pathname === "/new")
     return {
@@ -39,11 +41,14 @@ function commandsFor(pathname: string): {
     };
   if (pathname === "/settings")
     return {
-      allowed: nav,
+      allowed: [...nav, "speed", "toggle"],
       where: "Settings. Reading speed, vibration, spoken guidance and your account.",
       help:
-        'In settings you can say: "my classes" to go back, "new class" to start ' +
-        'one, or "let\'s make an account" to sync your classes across devices.',
+        'In settings you can say: "read faster" or "read slower" to change the ' +
+        'speed, "normal speed" to reset it, "turn on vibration" or "turn off ' +
+        'vibration", "turn on spoken guidance" or "turn off spoken guidance", ' +
+        '"my classes" to go back, or "let\'s make an account" to sync your ' +
+        "classes across devices.",
     };
   if (pathname === "/account")
     return {

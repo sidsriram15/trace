@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "@/lib/history";
 import { speak } from "@/lib/speech";
 import { useLessonPlayback } from "@/hooks/useLessonPlayback";
@@ -13,10 +13,26 @@ import type { VoiceCommand } from "@/lib/commands";
 import type { BoardState } from "@/hooks/useTraceSession";
 
 /** Full hands-free read-through of a past class. */
-function LessonPlayback({ states }: { states: BoardState[] }) {
+function LessonPlayback({
+  states,
+  autoPlay,
+}: {
+  states: BoardState[];
+  autoPlay?: boolean;
+}) {
   const { index, playing, playFrom, pause, next, prev } =
     useLessonPlayback(states);
   const current = index === null ? null : states[index];
+
+  // Arriving here by voice ("open chapter four") means to hear it, not to
+  // land on a page and have to find the play button too.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoPlay || autoStarted.current || states.length === 0) return;
+    autoStarted.current = true;
+    playFrom(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPlay, states.length]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -113,7 +129,17 @@ function LessonPlayback({ states }: { states: BoardState[] }) {
 }
 
 export default function HistoryDetail() {
+  return (
+    <Suspense fallback={null}>
+      <HistoryDetailInner />
+    </Suspense>
+  );
+}
+
+function HistoryDetailInner() {
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const autoPlay = searchParams.get("autoplay") === "1";
   const session = useSession(params.id);
   const folders = useFolders();
 
@@ -165,7 +191,7 @@ export default function HistoryDetail() {
       </div>
 
       <div className="mt-8">
-        <LessonPlayback states={session.states} />
+        <LessonPlayback states={session.states} autoPlay={autoPlay} />
       </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[3fr_2fr] lg:gap-14">

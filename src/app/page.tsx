@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createFolder, deleteFolder, useFolders, type Folder } from "@/lib/folders";
 import { deleteSession, useSessions, type SavedSession } from "@/lib/history";
 import { ClassRow } from "@/components/ClassRow";
@@ -58,6 +59,7 @@ function FolderSection({
 }
 
 export default function Home() {
+  const router = useRouter();
   const folders = useFolders();
   const sessions = useSessions();
   const account = useAccount();
@@ -70,25 +72,52 @@ export default function Home() {
       : `Your classes. ${sessions.length} saved. Press V to talk to Trace, then say "new class" to start one, or "help" to hear everything you can say.`,
   );
 
-  // "Make a folder called X" works from here without finding the button —
-  // the same voice event the /new page listens for, but this page creates
-  // a standalone folder instead of filing a class into one.
+  // "Make a folder called X" and "open X" both work from here without
+  // finding anything on screen — the same voice event the /new page
+  // listens for, handled differently per action.
   useEffect(() => {
     const onCommand = (e: Event) => {
       const command = (e as CustomEvent<VoiceCommand>).detail;
-      if (command?.action !== "folder" || !command.value) return;
-      const named = titleCase(command.value);
-      const existing = folders.find((f) => simplify(f.name) === simplify(named));
-      if (existing) {
-        speak(`You already have a folder called ${existing.name}.`);
+      if (!command) return;
+
+      if (command.action === "folder" && command.value) {
+        const named = titleCase(command.value);
+        const existing = folders.find((f) => simplify(f.name) === simplify(named));
+        if (existing) {
+          speak(`You already have a folder called ${existing.name}.`);
+          return;
+        }
+        createFolder(named);
+        speak(`Made a new folder called ${named}.`);
         return;
       }
-      createFolder(named);
-      speak(`Made a new folder called ${named}.`);
+
+      if (command.action === "open" && command.value) {
+        if (sessions.length === 0) {
+          speak("You don't have any saved classes yet.");
+          return;
+        }
+        // useSessions() is already sorted newest first.
+        if (command.value === "__last__") {
+          router.push(`/history/${sessions[0].id}?autoplay=1`);
+          return;
+        }
+        const said = simplify(command.value);
+        const match =
+          sessions.find((s) => s.title && simplify(s.title) === said) ??
+          sessions.find((s) => s.title && simplify(s.title).includes(said)) ??
+          sessions.find((s) => s.title && said.includes(simplify(s.title)));
+        if (match) {
+          router.push(`/history/${match.id}?autoplay=1`);
+        } else {
+          speak(`I couldn't find a class called ${command.value}.`);
+        }
+        return;
+      }
     };
     window.addEventListener("trace:command", onCommand);
     return () => window.removeEventListener("trace:command", onCommand);
-  }, [folders]);
+  }, [folders, sessions, router]);
 
   const handleCreateFolder = () => {
     const name = newFolderName.trim();
