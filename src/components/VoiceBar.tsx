@@ -105,8 +105,7 @@ export function VoiceBar() {
   const { listenState, heard, listen } = useVoiceCommands({
     allowed,
     help,
-    // In a class the space bar pauses; everywhere else it opens the mic.
-    spaceToTalk: pathname !== "/blind",
+    spaceToTalk: true,
     onCommand: (command) => {
       switch (command.action) {
         case "home":

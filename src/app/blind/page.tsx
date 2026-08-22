@@ -21,8 +21,8 @@ const HELP =
   '"Trace, call it" and a name to rename this class — for example, Trace, call it chapter four, ' +
   '"Trace, where am I" to hear what is going on, ' +
   'or "Trace, end class" to save it and finish. ' +
-  "You can also press V on the keyboard to give a command without saying Trace first. " +
-  "Other keyboard shortcuts: space bar pauses and resumes, R repeats, E ends the class, and H repeats this list.";
+  "You can also press space or V on the keyboard to give a command without saying Trace first. " +
+  "Other keyboard shortcuts: P pauses and resumes, R repeats, E ends the class, and H repeats this list.";
 
 export default function BlindMode() {
   return (
@@ -49,7 +49,7 @@ function BlindModeInner() {
   useSpokenGuidance(
     "Class starting. Opening the camera — point it at the whiteboard. " +
       'Say "Trace, help" any time to hear what you can ask for. ' +
-      "Press H on the keyboard to hear what you can say, or press V to give a command.",
+      "Press H on the keyboard to hear what you can say, or press space to give a command.",
   );
 
   const [paused, setPaused] = useState(false);
@@ -218,15 +218,11 @@ function BlindModeInner() {
           ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
       if (typing) return;
 
-      if (e.code === "Space") {
-        // A focused button already activates on Space. Letting the browser
-        // do it avoids toggling twice — but the letter keys below must
-        // still work after a button has been clicked, which is why this
-        // check is scoped to Space rather than skipping every key.
-        if (target instanceof HTMLElement && target.closest("button")) return;
-        e.preventDefault();
-        runCommand({ action: pausedRef.current ? "resume" : "pause" });
-      } else if (e.key.toLowerCase() === "r") runCommand({ action: "repeat" });
+      // Space is push-to-talk here too, same as every other screen — it no
+      // longer pauses. P takes over that job so pausing by keyboard doesn't
+      // disappear.
+      if (e.key.toLowerCase() === "p") runCommand({ action: pausedRef.current ? "resume" : "pause" });
+      else if (e.key.toLowerCase() === "r") runCommand({ action: "repeat" });
       else if (e.key.toLowerCase() === "e") runCommand({ action: "end" });
       else if (e.key.toLowerCase() === "h") runCommand({ action: "help" });
     };
@@ -302,7 +298,7 @@ function BlindModeInner() {
         </button>
       </div>
       <p className="mt-3 font-mono text-xs leading-6 tracking-wide text-faint uppercase">
-        Space pauses · R repeats · E ends · H lists everything · V gives a command
+        P pauses · R repeats · E ends · H lists everything · Space or V gives a command
       </p>
 
       {/* Aiming the camera is the one part of this a blind student may need
