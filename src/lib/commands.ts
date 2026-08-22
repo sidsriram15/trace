@@ -40,6 +40,34 @@ export type VoiceAction =
  */
 export type VoiceCommand = { action: VoiceAction; value?: string };
 
+/**
+ * What each action means, for the LLM fallback (see /api/intent) to pick
+ * from when a phrase doesn't match anything in the fixed vocabulary below.
+ * Kept next to the vocabulary itself so the two never drift apart.
+ */
+export const ACTION_DESCRIPTIONS: Record<VoiceAction, string> = {
+  pause: "pause the class — stop reading aloud and stop watching the board",
+  resume: "resume a paused class",
+  repeat: "repeat the last thing that was read aloud",
+  help: "list everything that can be said on this screen",
+  end: "end the class and save it",
+  home: "go to the list of saved classes",
+  new: "start a new class — or, if already on the new-class screen, begin it",
+  settings: "open settings",
+  play: "play or read back the current saved class from the start",
+  next: "move to the next board update in a saved class",
+  previous: "move to the previous board update in a saved class",
+  status: "say what screen this is and what's currently happening",
+  name: "name or rename the class (or, on the account screen, the student's name) — value is the dictated name",
+  folder: "file the class into a folder, or create a standalone folder — value is the folder name",
+  pin: "set the account PIN — value is the spoken digits with no spaces, e.g. \"1234\"",
+  submit: "create an account or sign into one — value is \"create\" or \"signin\"",
+  account: "go to the account / sign-in screen",
+  speed: "change the reading speed — value is \"faster\", \"slower\", or \"normal\"",
+  toggle: "turn a setting on or off — value is \"haptics-on\", \"haptics-off\", \"guidance-on\", or \"guidance-off\"",
+  open: "open a saved class by name and start reading it — value is the class name, or \"__last__\" for the most recently saved one",
+};
+
 // Everything after one of these is treated as the class name (or, on the
 // account page, the student's name) rather than matched against the fixed
 // vocabulary. Longest first so "call this class" wins over "call this".

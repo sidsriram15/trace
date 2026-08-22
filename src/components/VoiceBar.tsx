@@ -153,7 +153,9 @@ export function VoiceBar() {
   const label =
     listenState === "listening"
       ? "Listening — say a command"
-      : "Talk to Trace (press V)";
+      : listenState === "thinking"
+        ? "Thinking…"
+        : "Talk to Trace (press V)";
 
   return (
     <>

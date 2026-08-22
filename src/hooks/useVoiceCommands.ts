@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listen, speak, stopSpeaking } from "@/lib/speech";
 import { matchCommand, type VoiceAction, type VoiceCommand } from "@/lib/commands";
 
-export type ListenState = "idle" | "listening" | "unavailable";
+export type ListenState = "idle" | "listening" | "thinking" | "unavailable";
 
 // How long to wait for speech before giving up, and how long to wait after
 // the student stops talking before acting on what they said. Continuous
@@ -85,9 +85,38 @@ export function useVoiceCommands(options: {
       }
       setHeard(said);
       const command = matchCommand(said, allowed);
-      if (command?.action === "help") speak(help);
-      else if (command) onCommand(command);
-      else speak(`I don't know how to ${said} here. Say help to hear your options.`);
+      if (command?.action === "help") {
+        speak(help);
+        return;
+      }
+      if (command) {
+        onCommand(command);
+        return;
+      }
+
+      // The fixed vocabulary didn't recognize this — ask the model before
+      // giving up, so unusual phrasing still works instead of just failing.
+      setListenState("thinking");
+      fetch("/api/intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: said, allowed }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { action?: VoiceAction | null; value?: string } | null) => {
+          setListenState("idle");
+          if (data?.action === "help") {
+            speak(help);
+          } else if (data?.action) {
+            onCommand({ action: data.action, value: data.value });
+          } else {
+            speak(`I don't know how to ${said} here. Say help to hear your options.`);
+          }
+        })
+        .catch(() => {
+          setListenState("idle");
+          speak(`I don't know how to ${said} here. Say help to hear your options.`);
+        });
     };
 
     giveUp = setTimeout(() => finish(best), NO_SPEECH_MS);
