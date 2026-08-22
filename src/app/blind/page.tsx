@@ -53,6 +53,12 @@ function BlindModeInner() {
   );
 
   const [paused, setPaused] = useState(false);
+  // Hidden by default: this is written text a blind student never looks
+  // at, and showing it by default makes the screen look built for sighted
+  // use. It's here for a sighted person nearby to glance at if they want to
+  // check the mic is picking things up — recognition keeps running either
+  // way, this only controls whether the text is drawn on screen.
+  const [showTranscript, setShowTranscript] = useState(false);
   const pausedRef = useRef(false);
   const spokenCount = useRef(0);
   const latestRef = useRef<{ narration: string } | null>(null);
@@ -197,6 +203,18 @@ function BlindModeInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, error]);
 
+  // The transcript section is hidden by default (see below) since it's
+  // written text a blind student never looks at — but a microphone problem
+  // still has to reach them somehow, so it's spoken regardless of whether
+  // that section is shown.
+  const lastSpokenSpeechError = useRef<string | null>(null);
+  useEffect(() => {
+    if (speechError && speechError !== lastSpokenSpeechError.current) {
+      lastSpokenSpeechError.current = speechError;
+      speak(speechError);
+    }
+  }, [speechError]);
+
   // Commands spoken through the push-to-talk bar arrive here.
   useEffect(() => {
     const onCommand = (e: Event) => {
@@ -334,39 +352,58 @@ function BlindModeInner() {
         </div>
       </section>
 
-      {/* Proof the microphone is actually working. Without something on
-          screen, a silent failure and a silent classroom look identical. */}
+      {/* Hidden by default — this is written text a blind student never
+          looks at. Recognition runs regardless of whether it's shown; this
+          toggle only controls whether the transcript is drawn on screen,
+          for a sighted person nearby who wants to check the mic is working. */}
       <section aria-label="Heard in the room" className="mt-12">
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
           <h2 className="font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
             Heard in the room
           </h2>
-          {micLabel && (
-            <p className="font-mono text-xs tracking-wide text-faint uppercase">
-              Mic: {micLabel}
-            </p>
-          )}
+          <div className="flex items-center gap-4">
+            {micLabel && showTranscript && (
+              <p className="font-mono text-xs tracking-wide text-faint uppercase">
+                Mic: {micLabel}
+              </p>
+            )}
+            <button
+              onClick={() => setShowTranscript((v) => !v)}
+              aria-expanded={showTranscript}
+              className="font-mono text-xs tracking-wide text-muted uppercase hover:text-foreground"
+            >
+              {showTranscript ? "Hide transcript" : "Show transcript"}
+            </button>
+          </div>
         </div>
-        <div aria-live="polite" className="mt-5 space-y-3">
-          {speechError && (
-            <p role="alert" className="text-base leading-7 text-live">
-              {speechError}
-            </p>
-          )}
-          {transcript.slice(-4).map((entry, i) => (
-            <p key={i} className="text-lg leading-8">
-              {entry.text}
-            </p>
-          ))}
-          {interim && (
-            <p className="text-lg leading-8 text-muted">{interim}…</p>
-          )}
-          {!speechError && transcript.length === 0 && !interim && (
-            <p className="text-base leading-7 text-faint">
-              Listening. Anything spoken in the room appears here.
-            </p>
-          )}
-        </div>
+        {showTranscript ? (
+          <div aria-live="polite" className="mt-5 space-y-3">
+            {speechError && (
+              <p role="alert" className="text-base leading-7 text-live">
+                {speechError}
+              </p>
+            )}
+            {transcript.slice(-4).map((entry, i) => (
+              <p key={i} className="text-lg leading-8">
+                {entry.text}
+              </p>
+            ))}
+            {interim && (
+              <p className="text-lg leading-8 text-muted">{interim}…</p>
+            )}
+            {!speechError && transcript.length === 0 && !interim && (
+              <p className="text-base leading-7 text-faint">
+                Listening. Anything spoken in the room appears here.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-5 text-base leading-7 text-faint">
+            Still listening in the background. Hidden since it&apos;s not
+            meant to be read — press &ldquo;Show transcript&rdquo; if a
+            sighted person wants to check it.
+          </p>
+        )}
       </section>
 
       <section aria-label="Narration history" className="mt-14">
