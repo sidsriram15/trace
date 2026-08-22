@@ -289,7 +289,18 @@ let currentAudio: HTMLAudioElement | null = null;
 // its latency on every single narration until the outage clears.
 let ttsCooldownUntil = 0;
 
-function speakWithBrowserVoice(text: string, finish: () => void) {
+// Bumped by every speak()/stopSpeaking() call. The network round trip to
+// ElevenLabs takes long enough that a second speak() call can easily start
+// before the first one's request has resolved — pausing whatever's
+// *already playing* doesn't stop that first request from finishing later
+// and starting its own audio on top of the second one. Comparing against
+// this token when a request resolves is what actually prevents two
+// narrations overlapping, not just interrupting whichever happened to be
+// audible at the time.
+let speakToken = 0;
+let activeAbort: AbortController | null = null;
+
+function speakWithBrowserVoice(text: string, finish: () => void, token: number) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     finish();
     return;
@@ -314,7 +325,10 @@ function speakWithBrowserVoice(text: string, finish: () => void) {
   // based on how long this text should take to say.
   const estimatedMs = (text.length / 12) * 1000 * (1 / Math.max(rate, 0.1));
   setTimeout(finish, Math.min(estimatedMs + 5000, 60000));
-  setTimeout(() => synth.speak(utterance), 60);
+  setTimeout(() => {
+    if (token !== speakToken) return; // superseded while waiting out the tick
+    synth.speak(utterance);
+  }, 60);
 }
 
 /**
@@ -329,6 +343,10 @@ export function speak(text: string, onEnd?: () => void) {
     onEnd?.();
     return;
   }
+
+  const token = ++speakToken;
+  activeAbort?.abort();
+  activeAbort = null;
 
   if (currentAudio) {
     currentAudio.onended = null;
@@ -350,14 +368,18 @@ export function speak(text: string, onEnd?: () => void) {
   mutedUntil = Number.MAX_SAFE_INTEGER;
 
   if (Date.now() < ttsCooldownUntil) {
-    speakWithBrowserVoice(text, finish);
+    speakWithBrowserVoice(text, finish, token);
     return;
   }
+
+  const controller = new AbortController();
+  activeAbort = controller;
 
   fetch("/api/tts", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text }),
+    signal: controller.signal,
   })
     .then((res) => {
       if (!res.ok) throw new Error(`tts request failed (${res.status})`);
@@ -366,7 +388,7 @@ export function speak(text: string, onEnd?: () => void) {
     .then((blob) => {
       // A newer speak() call (or stopSpeaking()) already took over while
       // this was in flight — don't play stale audio on top of it.
-      if (finished) return;
+      if (token !== speakToken) return;
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audio.playbackRate = getSettings().speechRate;
@@ -383,14 +405,18 @@ export function speak(text: string, onEnd?: () => void) {
       };
       void audio.play();
     })
-    .catch(() => {
-      if (finished) return;
+    .catch((err) => {
+      if (token !== speakToken) return;
+      if (err instanceof DOMException && err.name === "AbortError") return;
       ttsCooldownUntil = Date.now() + 60000;
-      speakWithBrowserVoice(text, finish);
+      speakWithBrowserVoice(text, finish, token);
     });
 }
 
 export function stopSpeaking() {
+  speakToken++;
+  activeAbort?.abort();
+  activeAbort = null;
   if (currentAudio) {
     currentAudio.onended = null;
     currentAudio.onerror = null;
