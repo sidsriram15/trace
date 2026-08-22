@@ -23,7 +23,38 @@ export type VoiceAction =
   | "play"
   | "next"
   | "previous"
-  | "status";
+  | "status"
+  | "name";
+
+/**
+ * A recognized command. `value` carries free text the student dictated —
+ * only "name" uses it, but the shape is what lets a command be more than a
+ * fixed phrase.
+ */
+export type VoiceCommand = { action: VoiceAction; value?: string };
+
+// Everything after one of these is treated as the class name rather than
+// matched against the fixed vocabulary. Longest first so "call this class"
+// wins over "call this".
+const NAMING_PREFIXES = [
+  "name this class",
+  "name the class",
+  "call this class",
+  "call the class",
+  "name this lesson",
+  "call this lesson",
+  "the name is",
+  "name this",
+  "call this",
+  "name it",
+  "call it",
+  "title it",
+  "rename to",
+  "rename it",
+];
+
+// Dictation habitually tacks these onto the front of the spoken name.
+const NAME_FILLER = /^(is|as|to|it)\s+/;
 
 // Longest phrases first within each action so "start over" doesn't get
 // swallowed by "start". Order across actions matters too: the first action
@@ -72,12 +103,28 @@ function normalize(text: string): string {
 export function matchCommand(
   text: string,
   allowed?: readonly VoiceAction[],
-): VoiceAction | null {
+): VoiceCommand | null {
   const said = normalize(text);
   if (!said) return null;
+
+  // Naming is checked first and takes the rest of the utterance verbatim.
+  // Otherwise a class called "next steps" would match the "next" command.
+  if (!allowed || allowed.includes("name")) {
+    for (const prefix of NAMING_PREFIXES) {
+      const at = said.indexOf(prefix);
+      if (at === -1) continue;
+      const value = said
+        .slice(at + prefix.length)
+        .trim()
+        .replace(NAME_FILLER, "")
+        .trim();
+      if (value) return { action: "name", value };
+    }
+  }
+
   for (const [action, phrases] of VOCABULARY) {
     if (allowed && !allowed.includes(action)) continue;
-    if (phrases.some((p) => said.includes(p))) return action;
+    if (phrases.some((p) => said.includes(p))) return { action };
   }
   return null;
 }
@@ -95,7 +142,7 @@ export function matchCommand(
 export function parseWakeCommand(
   text: string,
   allowed?: readonly VoiceAction[],
-): VoiceAction | null {
+): VoiceCommand | null {
   const said = normalize(text);
   if (!said) return null;
 
@@ -114,7 +161,7 @@ export function parseWakeCommand(
   const rest = words.slice(at + 1).join(" ");
   // Bare "Trace" with nothing after it is treated as a request for help,
   // so a student who forgets the command list can always get it back.
-  if (!rest) return "help";
+  if (!rest) return { action: "help" };
   return matchCommand(rest, allowed);
 }
 

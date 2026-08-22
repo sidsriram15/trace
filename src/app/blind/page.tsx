@@ -5,7 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useTraceSession } from "@/hooks/useTraceSession";
 import { speak, stopSpeaking } from "@/lib/speech";
 import { useFolders } from "@/lib/folders";
-import type { VoiceAction } from "@/lib/commands";
+import type { VoiceCommand } from "@/lib/commands";
+
+/** Spoken names arrive lowercased from the recognizer. */
+function titleCase(value: string): string {
+  return value.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
 
 const HELP =
   'While a class is running you can say: "Trace, pause" to stop the narration, ' +
@@ -25,7 +30,9 @@ function BlindModeInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const folderId = searchParams.get("folder") ?? undefined;
-  const title = searchParams.get("title") ?? undefined;
+  // Starts from the name chosen on the way in, but stays editable: a class
+  // often turns out to be about something other than what it was called.
+  const [title, setTitle] = useState(searchParams.get("title") ?? "");
   const folders = useFolders();
   const folderName = folderId
     ? folders.find((f) => f.id === folderId)?.name
@@ -53,8 +60,15 @@ function BlindModeInner() {
   // keyboard. Keeping them on the same path means neither can quietly fall
   // behind the other.
   const runCommand = useCallback(
-    (action: VoiceAction) => {
-      switch (action) {
+    (command: VoiceCommand) => {
+      switch (command.action) {
+        case "name": {
+          if (!command.value) break;
+          const named = titleCase(command.value);
+          setTitle(named);
+          speak(`Called this class ${named}.`);
+          break;
+        }
         case "pause":
           togglePause(true);
           speak("Paused.");
@@ -143,8 +157,8 @@ function BlindModeInner() {
   // Commands spoken through the push-to-talk bar arrive here.
   useEffect(() => {
     const onCommand = (e: Event) => {
-      const action = (e as CustomEvent<VoiceAction>).detail;
-      if (action) runCommand(action);
+      const command = (e as CustomEvent<VoiceCommand>).detail;
+      if (command?.action) runCommand(command);
     };
     window.addEventListener("trace:command", onCommand);
     return () => window.removeEventListener("trace:command", onCommand);
@@ -158,9 +172,9 @@ function BlindModeInner() {
         return;
       if (e.code === "Space") {
         e.preventDefault();
-        runCommand(pausedRef.current ? "resume" : "pause");
-      } else if (e.key.toLowerCase() === "r") runCommand("repeat");
-      else if (e.key.toLowerCase() === "h") runCommand("help");
+        runCommand({ action: pausedRef.current ? "resume" : "pause" });
+      } else if (e.key.toLowerCase() === "r") runCommand({ action: "repeat" });
+      else if (e.key.toLowerCase() === "h") runCommand({ action: "help" });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -233,7 +247,7 @@ function BlindModeInner() {
 
       <div className="mt-8">
         <button
-          onClick={() => runCommand(paused ? "resume" : "pause")}
+          onClick={() => runCommand({ action: paused ? "resume" : "pause" })}
           className="w-full border-2 border-line bg-foreground px-6 py-5 text-xl font-semibold text-background hover:bg-muted"
         >
           {paused ? "Resume narration" : "Pause narration"}

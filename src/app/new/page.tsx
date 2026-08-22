@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createFolder, useFolders } from "@/lib/folders";
 import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
+import { speak } from "@/lib/speech";
+import type { VoiceCommand } from "@/lib/commands";
+
+/** Spoken names arrive lowercased from the recognizer. */
+function titleCase(value: string): string {
+  return value.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
 
 export default function NewClass() {
   const router = useRouter();
@@ -18,9 +25,10 @@ export default function NewClass() {
   // can't speak for you — knowing it's coming is the difference between
   // "the app is broken" and "press Allow".
   useSpokenGuidance(
-    "Starting a new class. Choose a folder if you'd like, or skip that and " +
-      "press Begin class when you're ready. Your browser will ask for camera " +
-      "and microphone permission — choose Allow. Then point the camera at the " +
+    "Starting a new class. Press V and say \"call it\" followed by a name to " +
+      "name this class, or skip that. Say \"start class\", or press Begin " +
+      "class, when you're ready. Your browser will ask for camera and " +
+      "microphone permission — choose Allow. Then point the camera at the " +
       "board, and Trace will read it out loud as the lesson unfolds.",
   );
 
@@ -33,13 +41,31 @@ export default function NewClass() {
     setCreatingFolder(false);
   };
 
-  const begin = () => {
+  const begin = useCallback(() => {
     const params = new URLSearchParams();
     if (selectedFolder) params.set("folder", selectedFolder);
     if (title.trim()) params.set("title", title.trim());
     const qs = params.toString();
     router.push(`/blind${qs ? `?${qs}` : ""}`);
-  };
+  }, [router, selectedFolder, title]);
+
+  // Naming and starting by voice, so the whole screen can be used without
+  // finding the text field. The name is read back because a misheard title
+  // is otherwise only visible on screen.
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const command = (e as CustomEvent<VoiceCommand>).detail;
+      if (command?.action === "name" && command.value) {
+        const named = titleCase(command.value);
+        setTitle(named);
+        speak(`Called it ${named}. Say "start class" when you're ready.`);
+      } else if (command?.action === "play") {
+        begin();
+      }
+    };
+    window.addEventListener("trace:command", onCommand);
+    return () => window.removeEventListener("trace:command", onCommand);
+  }, [begin]);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-12">

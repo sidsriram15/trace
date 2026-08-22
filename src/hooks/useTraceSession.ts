@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { captureFrame, diffScore, fingerprint } from "@/lib/frame";
 import { ensureMicrophone, listen, microphoneLabel, pulse } from "@/lib/speech";
 import { saveSession } from "@/lib/history";
-import { isWakePhrase, parseWakeCommand, type VoiceAction } from "@/lib/commands";
+import {
+  isWakePhrase,
+  parseWakeCommand,
+  type VoiceAction,
+  type VoiceCommand,
+} from "@/lib/commands";
 
 export type BoardState = {
   id: number;
@@ -44,12 +49,13 @@ export const IN_CLASS_COMMANDS = [
   "help",
   "end",
   "status",
+  "name",
 ] as const satisfies readonly VoiceAction[];
 
 export function useTraceSession(meta?: {
   folderId?: string;
   title?: string;
-  onCommand?: (action: VoiceAction) => void;
+  onCommand?: (command: VoiceCommand) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<SessionStatus>("starting");
@@ -208,12 +214,17 @@ export function useTraceSession(meta?: {
     let lastCommand = "";
     let lastCommandAt = 0;
 
-    const tryCommand = (text: string): boolean => {
+    const tryCommand = (text: string, isFinal: boolean): boolean => {
       const command = parseWakeCommand(text, IN_CLASS_COMMANDS);
       if (!command) return false;
+      // A dictated name firms up word by word as the recognizer revises its
+      // interim guess, so naming only acts on a final result — otherwise a
+      // class ends up called "chapter" instead of "chapter four momentum".
+      if (command.action === "name" && !isFinal) return true;
+      const key = `${command.action}:${command.value ?? ""}`;
       const nowMs = Date.now();
-      if (command === lastCommand && nowMs - lastCommandAt < 4000) return true;
-      lastCommand = command;
+      if (key === lastCommand && nowMs - lastCommandAt < 4000) return true;
+      lastCommand = key;
       lastCommandAt = nowMs;
       onCommandRef.current?.(command);
       return true;
@@ -223,7 +234,7 @@ export function useTraceSession(meta?: {
       if (cancelled) return;
       release = listen({
       onInterim: (text) => {
-        if (tryCommand(text)) {
+        if (tryCommand(text, false)) {
           setInterim("");
           return;
         }
@@ -235,7 +246,7 @@ export function useTraceSession(meta?: {
         // wake word required, or "let's pause here" from the teacher would
         // pause narration.
         setInterim("");
-        if (tryCommand(text)) return;
+        if (tryCommand(text, true)) return;
         // Addressed to Trace but not understood — don't file it as lecture.
         if (isWakePhrase(text)) return;
 

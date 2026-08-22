@@ -23,9 +23,9 @@ function commandsFor(pathname: string): {
     };
   if (pathname === "/new")
     return {
-      allowed: nav,
-      where: "Starting a new class. Choose a folder, or begin straight away.",
-      help: 'Here you can say: "start class" to begin, "my classes" to go back, or "settings".',
+      allowed: [...nav, "name", "play"],
+      where: "Starting a new class. Choose a folder, name it, or begin straight away.",
+      help: 'Here you can say: "call it" followed by a name — for example "call it chapter four momentum" — then "start class" to begin. You can also say "my classes" to go back, or "settings".',
     };
   if (pathname === "/settings")
     return {
@@ -47,9 +47,9 @@ function commandsFor(pathname: string): {
     };
   if (pathname === "/blind")
     return {
-      allowed: ["pause", "resume", "repeat", "end", "help", "status"],
+      allowed: ["pause", "resume", "repeat", "end", "help", "status", "name"],
       where: "A class in progress. Trace is watching the board.",
-      help: 'During a class you can say: "pause", "resume", "repeat", "where am I", or "end class". You can also just say "Trace, pause" without pressing anything.',
+      help: 'During a class you can say: "pause", "resume", "repeat", "call it" followed by a name, "where am I", or "end class". You can also just say "Trace, pause" without pressing anything.',
     };
   return {
     allowed: nav,
@@ -76,14 +76,21 @@ export function VoiceBar() {
   const { listenState, heard, listen } = useVoiceCommands({
     allowed,
     help,
-    onCommand: (action) => {
-      switch (action) {
+    onCommand: (command) => {
+      switch (command.action) {
         case "home":
           speak("Your classes.");
           router.push("/");
           break;
         case "new":
-          router.push("/new");
+          // Already here: "start class" means begin, not navigate.
+          if (pathname === "/new") {
+            window.dispatchEvent(
+              new CustomEvent("trace:command", { detail: { action: "play" } }),
+            );
+          } else {
+            router.push("/new");
+          }
           break;
         case "settings":
           speak("Settings.");
@@ -93,9 +100,9 @@ export function VoiceBar() {
           speak(where);
           break;
         default:
-          // Playback and in-class commands are handled by the page showing
-          // them, which listens for them on the window.
-          window.dispatchEvent(new CustomEvent("trace:command", { detail: action }));
+          // Playback, naming and in-class commands are handled by the page
+          // showing them, which listens for them on the window.
+          window.dispatchEvent(new CustomEvent("trace:command", { detail: command }));
       }
     },
   });

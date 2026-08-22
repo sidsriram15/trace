@@ -9,7 +9,7 @@ import { useLessonPlayback } from "@/hooks/useLessonPlayback";
 import { MindMap } from "@/components/MindMap";
 import { useFolders } from "@/lib/folders";
 import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
-import type { VoiceAction } from "@/lib/commands";
+import type { VoiceCommand } from "@/lib/commands";
 import type { BoardState } from "@/hooks/useTraceSession";
 
 /** Full hands-free read-through of a past class. */
@@ -38,7 +38,7 @@ function LessonPlayback({ states }: { states: BoardState[] }) {
   // here as an event, so "play this class" works without finding a button.
   useEffect(() => {
     const onCommand = (e: Event) => {
-      const action = (e as CustomEvent<VoiceAction>).detail;
+      const action = (e as CustomEvent<VoiceCommand>).detail?.action;
       if (action === "play") playFrom(index ?? 0);
       else if (action === "pause") pause();
       else if (action === "next") next();

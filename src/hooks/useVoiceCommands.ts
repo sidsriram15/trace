@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen, speak, stopSpeaking } from "@/lib/speech";
-import { matchCommand, type VoiceAction } from "@/lib/commands";
+import { matchCommand, type VoiceAction, type VoiceCommand } from "@/lib/commands";
 
 export type ListenState = "idle" | "listening" | "unavailable";
 
@@ -23,7 +23,7 @@ const SETTLE_MS = 1100;
  */
 export function useVoiceCommands(options: {
   allowed: readonly VoiceAction[];
-  onCommand: (action: VoiceAction) => void;
+  onCommand: (command: VoiceCommand) => void;
   /** Spoken when the student asks what they can say here. */
   help: string;
   enabled?: boolean;
@@ -79,9 +79,9 @@ export function useVoiceCommands(options: {
         return;
       }
       setHeard(said);
-      const action = matchCommand(said, allowed);
-      if (action === "help") speak(help);
-      else if (action) onCommand(action);
+      const command = matchCommand(said, allowed);
+      if (command?.action === "help") speak(help);
+      else if (command) onCommand(command);
       else speak(`I don't know how to ${said} here. Say help to hear your options.`);
     };
 
