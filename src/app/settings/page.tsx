@@ -120,9 +120,10 @@ export default function SettingsPage() {
           Voice
         </h2>
         <p className="mt-3 max-w-xl text-base leading-7 text-muted">
-          Which voice reads the board to you. You&apos;ll be listening to this
-          for a whole lesson, so pick one you can stand. Each one speaks as
-          soon as you choose it.
+          Trace narrates with a natural ElevenLabs voice by default. This
+          list is the backup voice used only if that request fails — you&apos;ll
+          be listening to it for a whole lesson if it kicks in, so pick one
+          you can stand. Each one speaks as soon as you choose it.
         </p>
 
         <fieldset className="mt-6 border-t border-line pt-6">

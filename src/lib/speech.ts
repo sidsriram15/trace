@@ -284,16 +284,18 @@ export function onVoicesReady(callback: () => void): () => void {
   return () => synth.removeEventListener("voiceschanged", callback);
 }
 
-/** Speak text aloud, replacing anything currently being spoken. */
-export function speak(text: string, onEnd?: () => void) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window) || !text) {
-    onEnd?.();
+let currentAudio: HTMLAudioElement | null = null;
+// After an ElevenLabs request fails, skip it for a while rather than eating
+// its latency on every single narration until the outage clears.
+let ttsCooldownUntil = 0;
+
+function speakWithBrowserVoice(text: string, finish: () => void) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    finish();
     return;
   }
   const synth = window.speechSynthesis;
   const { speechRate: rate, voiceURI } = getSettings();
-
-  synth.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.rate = rate;
@@ -304,17 +306,6 @@ export function speak(text: string, onEnd?: () => void) {
     const voice = synth.getVoices().find((v) => v.voiceURI === voiceURI);
     if (voice) utterance.voice = voice;
   }
-
-  let finished = false;
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    // A short tail so the end of the sentence doesn't land in the mic.
-    mutedUntil = Date.now() + 400;
-    onEnd?.();
-  };
-
-  mutedUntil = Number.MAX_SAFE_INTEGER;
   utterance.onend = finish;
   utterance.onerror = finish;
 
@@ -326,9 +317,89 @@ export function speak(text: string, onEnd?: () => void) {
   setTimeout(() => synth.speak(utterance), 60);
 }
 
+/**
+ * Speak text aloud, replacing anything currently being spoken.
+ *
+ * Tries ElevenLabs first for a natural voice, and falls back to the
+ * browser's built-in SpeechSynthesis — instantly, and without ever leaving
+ * a class silent — if the request fails or the API key isn't configured.
+ */
+export function speak(text: string, onEnd?: () => void) {
+  if (typeof window === "undefined" || !text) {
+    onEnd?.();
+    return;
+  }
+
+  if (currentAudio) {
+    currentAudio.onended = null;
+    currentAudio.onerror = null;
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    // A short tail so the end of the sentence doesn't land in the mic.
+    mutedUntil = Date.now() + 400;
+    onEnd?.();
+  };
+
+  mutedUntil = Number.MAX_SAFE_INTEGER;
+
+  if (Date.now() < ttsCooldownUntil) {
+    speakWithBrowserVoice(text, finish);
+    return;
+  }
+
+  fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`tts request failed (${res.status})`);
+      return res.blob();
+    })
+    .then((blob) => {
+      // A newer speak() call (or stopSpeaking()) already took over while
+      // this was in flight — don't play stale audio on top of it.
+      if (finished) return;
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.playbackRate = getSettings().speechRate;
+      currentAudio = audio;
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) currentAudio = null;
+        finish();
+      };
+      audio.onerror = () => {
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) currentAudio = null;
+        finish();
+      };
+      void audio.play();
+    })
+    .catch(() => {
+      if (finished) return;
+      ttsCooldownUntil = Date.now() + 60000;
+      speakWithBrowserVoice(text, finish);
+    });
+}
+
 export function stopSpeaking() {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-  window.speechSynthesis.cancel();
+  if (currentAudio) {
+    currentAudio.onended = null;
+    currentAudio.onerror = null;
+    currentAudio.pause();
+    currentAudio = null;
+  }
+  if (typeof window !== "undefined" && "speechSynthesis" in window) {
+    window.speechSynthesis.cancel();
+  }
   mutedUntil = Date.now() + 300;
 }
 
