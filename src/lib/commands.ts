@@ -27,7 +27,8 @@ export type VoiceAction =
   | "name"
   | "folder"
   | "pin"
-  | "submit";
+  | "submit"
+  | "account";
 
 /**
  * A recognized command. `value` carries free text the student dictated —
@@ -171,6 +172,23 @@ const VOCABULARY: [VoiceAction, string[]][] = [
   ["pause", ["be quiet", "stop talking", "pause", "quiet", "shush", "hush", "mute"]],
   ["new", ["start a new class", "new class", "start class", "begin class", "new lesson"]],
   ["settings", ["open settings", "settings", "preferences"]],
+  [
+    "account",
+    [
+      "let's make an account",
+      "lets make an account",
+      "make an account",
+      "set up an account",
+      "create an account",
+      "create account",
+      "sign up",
+      "sign in",
+      "log in",
+      "add a pin",
+      "my account",
+      "account",
+    ],
+  ],
   ["home", ["my classes", "your classes", "go home", "home", "back", "class list"]],
   ["play", ["play this class", "play the class", "read the class", "play", "listen"]],
   ["next", ["next update", "next one", "next", "forward", "skip"]],

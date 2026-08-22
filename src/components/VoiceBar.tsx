@@ -13,7 +13,7 @@ function commandsFor(pathname: string): {
   help: string;
   where: string;
 } {
-  const nav: VoiceAction[] = ["home", "new", "settings", "help", "status"];
+  const nav: VoiceAction[] = ["home", "new", "settings", "help", "status", "account"];
 
   if (pathname === "/")
     return {
@@ -22,7 +22,8 @@ function commandsFor(pathname: string): {
       help:
         'On your classes you can say: "new class" to start one, ' +
         '"make a folder called" and a name to create a folder — for example, ' +
-        '"make a folder called science" — "settings" to change the voice and ' +
+        '"make a folder called science" — "let\'s make an account" to sync ' +
+        'your classes across devices, "settings" to change the voice and ' +
         'reading speed, or "where am I". Press V any time to talk to Trace.',
     };
   if (pathname === "/new")
@@ -40,7 +41,9 @@ function commandsFor(pathname: string): {
     return {
       allowed: nav,
       where: "Settings. Reading speed, vibration, spoken guidance and your account.",
-      help: 'In settings you can say: "my classes" to go back, or "new class" to start one.',
+      help:
+        'In settings you can say: "my classes" to go back, "new class" to start ' +
+        'one, or "let\'s make an account" to sync your classes across devices.',
     };
   if (pathname === "/account")
     return {
@@ -123,6 +126,14 @@ export function VoiceBar() {
         case "settings":
           speak("Settings.");
           router.push("/settings");
+          break;
+        case "account":
+          if (pathname === "/account") {
+            speak("You're already setting up an account.");
+          } else {
+            speak("Let's make an account.");
+            router.push("/account");
+          }
           break;
         case "status":
           speak(where);
