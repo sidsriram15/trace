@@ -399,9 +399,7 @@ function BlindModeInner() {
           </div>
         ) : (
           <p className="mt-5 truncate text-base leading-7 text-faint">
-            {interim || transcript[transcript.length - 1]?.text
-              ? `Still listening — "${(interim || transcript[transcript.length - 1]?.text || "").slice(0, 90)}"`
-              : "Still listening. Nothing said yet."}
+            {(interim || transcript[transcript.length - 1]?.text || "Listening…").slice(0, 90)}
           </p>
         )}
       </section>
