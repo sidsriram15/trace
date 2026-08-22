@@ -1,31 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createFolder, useFolders } from "@/lib/folders";
-import { useDefaultMode } from "@/lib/settings";
-import { speak } from "@/lib/speech";
+import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
 
 export default function NewClass() {
   const router = useRouter();
   const folders = useFolders();
-  const mode = useDefaultMode();
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
-  // Blind students shouldn't need to read this page to know what to do.
-  useEffect(() => {
-    if (mode === "blind") {
-      speak(
-        "Starting a new class. Choose a folder if you'd like, or skip that " +
-          "and press Begin class when you're ready. Trace will watch the " +
-          "board and read it out loud as the lesson unfolds.",
-      );
-    }
-  }, [mode]);
+  // Nothing on this page should need to be seen to be used. It also warns
+  // about the permission prompt, which is a purely visual dialog Trace
+  // can't speak for you — knowing it's coming is the difference between
+  // "the app is broken" and "press Allow".
+  useSpokenGuidance(
+    "Starting a new class. Choose a folder if you'd like, or skip that and " +
+      "press Begin class when you're ready. Your browser will ask for camera " +
+      "and microphone permission — choose Allow. Then point the camera at the " +
+      "board, and Trace will read it out loud as the lesson unfolds.",
+  );
 
   const handleCreateFolder = () => {
     const name = newFolderName.trim();
@@ -41,27 +38,18 @@ export default function NewClass() {
     if (selectedFolder) params.set("folder", selectedFolder);
     if (title.trim()) params.set("title", title.trim());
     const qs = params.toString();
-    router.push(`/${mode}${qs ? `?${qs}` : ""}`);
+    router.push(`/blind${qs ? `?${qs}` : ""}`);
   };
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 py-12">
-      <p className="font-mono text-xs tracking-[0.15em] text-muted uppercase">
-        {mode === "low-vision" ? "Low Vision mode" : "Blind mode"} ·{" "}
-        <Link href="/settings" className="underline hover:no-underline">
-          Change in Settings
-        </Link>
-      </p>
-      <h1 className="mt-3 text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
+      <h1 className="text-4xl leading-[1.1] font-semibold tracking-tight sm:text-5xl">
         Start a new class
       </h1>
       <p className="mt-5 max-w-xl text-lg leading-8 text-muted">
         Point your camera at the whiteboard once class begins. Trace will
-        watch it and{" "}
-        {mode === "blind"
-          ? "read it out loud"
-          : "keep large, structured notes"}{" "}
-        as the lesson unfolds.
+        watch it and read it out loud as the lesson unfolds. Your browser
+        will ask for camera and microphone access — choose Allow.
       </p>
 
       <div className="mt-12">

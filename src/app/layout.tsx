@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { VoiceBar } from "@/components/VoiceBar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Trace",
   description:
-    "Real-time classroom access for blind and low-vision students. Trace watches the whiteboard, listens to the lecture, and gives the class back in a usable form.",
+    "Real-time classroom access for blind students. Trace watches the whiteboard, listens to the lecture, and reads the class back to you as it happens.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -45,9 +46,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             </p>
           </div>
         </header>
-        <main id="main" className="flex flex-1 flex-col">
+        <main id="main" className="flex flex-1 flex-col pb-24">
           {children}
         </main>
+        <VoiceBar />
       </body>
     </html>
   );

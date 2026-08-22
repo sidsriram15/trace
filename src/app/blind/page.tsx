@@ -1,10 +1,17 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useTraceSession } from "@/hooks/useTraceSession";
 import { speak, stopSpeaking } from "@/lib/speech";
 import { useFolders } from "@/lib/folders";
+import type { VoiceAction } from "@/lib/commands";
+
+const HELP =
+  'While a class is running you can say: "Trace, pause" to stop the narration, ' +
+  '"Trace, resume" to start it again, "Trace, repeat" to hear the last update ' +
+  'once more, "Trace, where am I", or "Trace, end class". You can also press ' +
+  "Space to pause, R to repeat, and H for this list.";
 
 export default function BlindMode() {
   return (
@@ -24,15 +31,90 @@ function BlindModeInner() {
     ? folders.find((f) => f.id === folderId)?.name
     : undefined;
 
-  const { videoRef, status, stopped, error, states, latest, endSession } =
-    useTraceSession("blind", { folderId, title });
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
   const spokenCount = useRef(0);
+  const latestRef = useRef<{ narration: string } | null>(null);
+  const endRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  const togglePause = useCallback((next?: boolean) => {
+    setPaused((p) => {
+      const value = next ?? !p;
+      if (value) stopSpeaking();
+      return value;
+    });
+  }, []);
+
+  // One handler for every way a command can arrive — spoken, or typed on a
+  // keyboard. Keeping them on the same path means neither can quietly fall
+  // behind the other.
+  const runCommand = useCallback(
+    (action: VoiceAction) => {
+      switch (action) {
+        case "pause":
+          togglePause(true);
+          speak("Paused.");
+          break;
+        case "resume":
+          togglePause(false);
+          speak("Listening to the board again.");
+          break;
+        case "repeat":
+          if (latestRef.current) speak(latestRef.current.narration);
+          else speak("Nothing has been read out yet.");
+          break;
+        case "help":
+          speak(HELP);
+          break;
+        case "status":
+          speak(
+            latestRef.current
+              ? `Class in progress${paused ? ", narration paused" : ""}. The last thing on the board was: ${latestRef.current.narration}`
+              : "Class in progress. Nothing has appeared on the board yet.",
+          );
+          break;
+        case "end":
+          speak("Ending the class and saving it.");
+          endRef.current();
+          break;
+      }
+    },
+    [togglePause, paused],
+  );
+
+  const {
+    videoRef,
+    status,
+    stopped,
+    error,
+    states,
+    latest,
+    transcript,
+    interim,
+    speechError,
+    micLabel,
+    endSession,
+  } = useTraceSession({ folderId, title, onCommand: runCommand });
+
+  const finish = useCallback(() => {
+    stopSpeaking();
+    endSession();
+    router.push("/");
+  }, [endSession, router]);
+
+  // Both of these are read from inside `runCommand`, which is created
+  // before either exists — a voice command can arrive at any moment, so
+  // they're kept current rather than baked into the callback.
+  useEffect(() => {
+    latestRef.current = latest;
+  }, [latest]);
+  useEffect(() => {
+    endRef.current = finish;
+  }, [finish]);
 
   // Speak each new narration as it arrives
   useEffect(() => {
@@ -48,33 +130,41 @@ function BlindModeInner() {
     if (status === "live") {
       const name = [folderName, title].filter(Boolean).join(", ");
       speak(
-        name
-          ? `Trace is live and watching the board, for ${name}.`
-          : "Trace is live and watching the board.",
+        (name
+          ? `Trace is live and watching the board, for ${name}. `
+          : "Trace is live and watching the board. ") +
+          'Say "Trace, help" any time to hear what you can ask for.',
       );
     } else if (status === "error" && error) speak(error);
     // Only announce once, when the session first goes live.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, error]);
 
-  // Keyboard shortcuts: Space pause/resume, R repeat (when not on a control)
+  // Commands spoken through the push-to-talk bar arrive here.
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const action = (e as CustomEvent<VoiceAction>).detail;
+      if (action) runCommand(action);
+    };
+    window.addEventListener("trace:command", onCommand);
+    return () => window.removeEventListener("trace:command", onCommand);
+  }, [runCommand]);
+
+  // Keyboard shortcuts mirror the voice commands exactly.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target instanceof HTMLElement && e.target.closest("button, input"))
         return;
       if (e.code === "Space") {
         e.preventDefault();
-        setPaused((p) => {
-          if (!p) stopSpeaking();
-          return !p;
-        });
-      } else if (e.key.toLowerCase() === "r" && latest) {
-        speak(latest.narration);
-      }
+        runCommand(pausedRef.current ? "resume" : "pause");
+      } else if (e.key.toLowerCase() === "r") runCommand("repeat");
+      else if (e.key.toLowerCase() === "h") runCommand("help");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [latest]);
+  }, [runCommand]);
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col px-6 py-10">
@@ -89,7 +179,7 @@ function BlindModeInner() {
             </p>
           )}
           <h1 className="text-3xl font-semibold tracking-tight">
-            {title || "Blind mode"}
+            {title || "Class in progress"}
           </h1>
         </div>
         <div className="flex items-center gap-4">
@@ -106,7 +196,7 @@ function BlindModeInner() {
           </p>
           {!stopped && (
             <button
-              onClick={() => { stopSpeaking(); endSession(); router.push("/"); }}
+              onClick={finish}
               className="border border-line px-3 py-1.5 font-mono text-xs tracking-wide uppercase hover:bg-foreground hover:text-background"
             >
               End class
@@ -141,29 +231,54 @@ function BlindModeInner() {
         )}
       </section>
 
-      <div className="mt-8 grid gap-3 sm:grid-cols-2">
+      <div className="mt-8">
         <button
-          onClick={() =>
-            setPaused((p) => {
-              if (!p) stopSpeaking();
-              return !p;
-            })
-          }
-          className="border-2 border-line bg-foreground px-6 py-5 text-xl font-semibold text-background hover:bg-muted"
+          onClick={() => runCommand(paused ? "resume" : "pause")}
+          className="w-full border-2 border-line bg-foreground px-6 py-5 text-xl font-semibold text-background hover:bg-muted"
         >
           {paused ? "Resume narration" : "Pause narration"}
         </button>
-        <button
-          onClick={() => latest && speak(latest.narration)}
-          disabled={!latest}
-          className="border-2 border-line px-6 py-5 text-xl font-semibold hover:bg-surface disabled:border-line-soft disabled:text-faint"
-        >
-          Repeat last
-        </button>
       </div>
-      <p className="mt-3 text-center font-mono text-xs tracking-wide text-faint uppercase">
-        Space — pause · R — repeat
+      <p className="mt-3 font-mono text-xs leading-6 tracking-wide text-faint uppercase">
+        Say &ldquo;Trace, pause&rdquo; · &ldquo;Trace, repeat&rdquo; ·
+        &ldquo;Trace, end class&rdquo; — or press Space to pause, R to
+        repeat, H for the full list
       </p>
+
+      {/* Proof the microphone is actually working. Without something on
+          screen, a silent failure and a silent classroom look identical. */}
+      <section aria-label="Heard in the room" className="mt-12">
+        <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line pb-2">
+          <h2 className="font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
+            Heard in the room
+          </h2>
+          {micLabel && (
+            <p className="font-mono text-xs tracking-wide text-faint uppercase">
+              Mic: {micLabel}
+            </p>
+          )}
+        </div>
+        <div aria-live="polite" className="mt-5 space-y-3">
+          {speechError && (
+            <p role="alert" className="text-base leading-7 text-live">
+              {speechError}
+            </p>
+          )}
+          {transcript.slice(-4).map((entry, i) => (
+            <p key={i} className="text-lg leading-8">
+              {entry.text}
+            </p>
+          ))}
+          {interim && (
+            <p className="text-lg leading-8 text-muted">{interim}…</p>
+          )}
+          {!speechError && transcript.length === 0 && !interim && (
+            <p className="text-base leading-7 text-faint">
+              Listening. Anything spoken in the room appears here.
+            </p>
+          )}
+        </div>
+      </section>
 
       <section aria-label="Narration history" className="mt-14">
         <h2 className="border-b border-line pb-2 font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">

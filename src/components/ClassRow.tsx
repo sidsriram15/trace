@@ -29,8 +29,7 @@ export function ClassRow({
       >
         <span className="font-mono text-xs tracking-wide text-muted uppercase">
           {formatDate(session.startedAt)} ·{" "}
-          {formatTimeRange(session.startedAt, session.endedAt)} ·{" "}
-          {session.mode === "low-vision" ? "Low Vision" : "Blind"}
+          {formatTimeRange(session.startedAt, session.endedAt)}
         </span>
         <span className="text-xl font-semibold tracking-tight">
           {session.title ||

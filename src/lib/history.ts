@@ -3,7 +3,12 @@ import type { BoardState, TranscriptEntry } from "@/hooks/useTraceSession";
 
 export type SavedSession = {
   id: string;
-  mode: "low-vision" | "blind";
+  /**
+   * Trace used to have a low-vision mode alongside the blind one. It
+   * doesn't any more, but classes saved back then are still in people's
+   * browsers, so the field stays readable and unused.
+   */
+  mode?: string;
   folderId?: string;
   title?: string;
   startedAt: number;
@@ -39,13 +44,16 @@ function ensureLoaded() {
 function commit(list: SavedSession[]) {
   // Drop oldest sessions until it fits — board-state images are the bulk of
   // the payload, so trimming session count is the cheapest way to recover
-  // from a quota error.
+  // from a quota error. Runs at least once so that clearing history down to
+  // nothing actually writes the empty list; bailing out early would leave
+  // the old classes sitting in storage to reappear on the next load.
   let toStore = list.slice(0, MAX_SESSIONS);
-  while (toStore.length > 0) {
+  for (;;) {
     try {
       window.localStorage.setItem(KEY, JSON.stringify(toStore));
       break;
     } catch {
+      if (toStore.length === 0) break;
       toStore = toStore.slice(0, -1);
     }
   }
@@ -55,9 +63,21 @@ function commit(list: SavedSession[]) {
   notify();
 }
 
-function subscribe(listener: () => void) {
+export function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Current classes, outside React — used by the sync layer. */
+export function getSessions(): SavedSession[] {
+  ensureLoaded();
+  return cache;
+}
+
+/** Replace everything, e.g. with what was just pulled for an account. */
+export function replaceSessions(list: SavedSession[]): void {
+  ensureLoaded();
+  commit([...list].sort((a, b) => b.startedAt - a.startedAt));
 }
 
 export function saveSession(session: Omit<SavedSession, "id">): void {

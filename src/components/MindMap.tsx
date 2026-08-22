@@ -30,9 +30,11 @@ function parseSections(markdown: string): Section[] {
 
 /**
  * Renders class notes as a branching tree: each topic hangs off a shared
- * spine, with its points branching off the topic. Built for low-vision
- * mode, so text runs large and the structure is carried by real borders
- * rather than color.
+ * spine, with its points branching off the topic. The structure is carried
+ * by real headings and lists rather than by color or indentation alone, so
+ * it reads the same to a screen reader as it looks on screen — a student
+ * revisiting a class can jump between topics instead of hearing one long
+ * wall of text.
  */
 export function MindMap({ markdown }: { markdown: string }) {
   const sections = parseSections(markdown);

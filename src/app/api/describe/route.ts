@@ -10,7 +10,7 @@ const client = new OpenAI({
 
 const MODEL = "Qwen/Qwen2.5-VL-72B-Instruct";
 
-const SYSTEM = `You are the vision engine for Trace, an app that gives blind and low-vision students real-time access to classroom content.
+const SYSTEM = `You are the vision engine for Trace, an app that gives blind students real-time access to classroom content.
 
 Each request contains: a camera frame of whatever the camera is pointed at, the structured notes accumulated so far, and the teacher's most recent spoken words (may be empty or noisy).
 

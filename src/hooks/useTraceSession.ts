@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { captureFrame, diffScore, fingerprint } from "@/lib/frame";
-import { createRecognizer } from "@/lib/speech";
+import { ensureMicrophone, listen, microphoneLabel, pulse } from "@/lib/speech";
 import { saveSession } from "@/lib/history";
+import { isWakePhrase, parseWakeCommand, type VoiceAction } from "@/lib/commands";
 
 export type BoardState = {
   id: number;
@@ -35,10 +36,21 @@ function now() {
   });
 }
 
-export function useTraceSession(
-  mode: "low-vision" | "blind",
-  meta?: { folderId?: string; title?: string },
-) {
+/** Commands the student can speak while a class is running. */
+export const IN_CLASS_COMMANDS = [
+  "pause",
+  "resume",
+  "repeat",
+  "help",
+  "end",
+  "status",
+] as const satisfies readonly VoiceAction[];
+
+export function useTraceSession(meta?: {
+  folderId?: string;
+  title?: string;
+  onCommand?: (action: VoiceAction) => void;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [status, setStatus] = useState<SessionStatus>("starting");
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +59,7 @@ export function useTraceSession(
   const [interim, setInterim] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [speechError, setSpeechError] = useState<string | null>(null);
+  const [micLabel, setMicLabel] = useState<string | null>(null);
   const startedAt = useRef(0);
   const statesRef = useRef<BoardState[]>([]);
 
@@ -66,6 +79,12 @@ export function useTraceSession(
   const notesRef = useRef("");
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const nextId = useRef(0);
+  // Kept in a ref so a new handler identity doesn't tear down and restart
+  // the recognizer mid-class.
+  const onCommandRef = useRef(meta?.onCommand);
+  useEffect(() => {
+    onCommandRef.current = meta?.onCommand;
+  }, [meta?.onCommand]);
 
   const analyze = useCallback(async (force = false) => {
     const video = videoRef.current;
@@ -121,6 +140,7 @@ export function useTraceSession(
         };
         statesRef.current = [...statesRef.current, entry];
         setStates(statesRef.current);
+        pulse(entry.erased ? [40, 60, 40] : 40);
       }
       setError(null);
     } catch (err) {
@@ -177,17 +197,87 @@ export function useTraceSession(
   // Live transcription
   useEffect(() => {
     if (stoppedRef.current) return;
-    const recognizer = createRecognizer({
+    let release: (() => void) | null = null;
+    let cancelled = false;
+
+    // Commands are matched on interim results as well as final ones, so
+    // "Trace, pause" acts immediately instead of waiting for the recognizer
+    // to decide the phrase is over — which can take several seconds, or
+    // never happen at all while someone keeps talking. `lastCommand` stops
+    // the same utterance firing twice as its interim text firms up.
+    let lastCommand = "";
+    let lastCommandAt = 0;
+
+    const tryCommand = (text: string): boolean => {
+      const command = parseWakeCommand(text, IN_CLASS_COMMANDS);
+      if (!command) return false;
+      const nowMs = Date.now();
+      if (command === lastCommand && nowMs - lastCommandAt < 4000) return true;
+      lastCommand = command;
+      lastCommandAt = nowMs;
+      onCommandRef.current?.(command);
+      return true;
+    };
+
+    const startListening = () => {
+      if (cancelled) return;
+      release = listen({
+      onInterim: (text) => {
+        if (tryCommand(text)) {
+          setInterim("");
+          return;
+        }
+        setInterim(text);
+      },
       onFinal: (text) => {
+        // The lecture recognizer is the only thing holding the mic during a
+        // class, so spoken commands have to be picked out of its stream —
+        // wake word required, or "let's pause here" from the teacher would
+        // pause narration.
+        setInterim("");
+        if (tryCommand(text)) return;
+        // Addressed to Trace but not understood — don't file it as lecture.
+        if (isWakePhrase(text)) return;
+
         const entry = { time: now(), text };
         transcriptRef.current = [...transcriptRef.current, entry].slice(-50);
         setTranscript(transcriptRef.current);
       },
-      onInterim: setInterim,
-      onUnavailable: (reason) => setSpeechError(reason),
+        onError: (reason, fatal) => setSpeechError(fatal ? reason : null),
+      });
+      stopRecognizer.current = () => release?.();
+    };
+
+    // An unanswered permission prompt leaves getUserMedia pending forever,
+    // which on screen is indistinguishable from a quiet room — so say what
+    // it's actually waiting for.
+    const waiting = setTimeout(() => {
+      if (!cancelled) {
+        setSpeechError(
+          'Waiting for microphone permission — choose "Allow" in your browser.',
+        );
+      }
+    }, 4000);
+
+    // Ask for the microphone explicitly first, so a blocked prompt or a
+    // dead input device reports itself instead of looking like a silent room.
+    void ensureMicrophone().then((problem) => {
+      clearTimeout(waiting);
+      if (cancelled) return;
+      if (problem) {
+        setSpeechError(problem);
+        return;
+      }
+      setMicLabel(microphoneLabel());
+      setSpeechError(null);
+      startListening();
     });
-    stopRecognizer.current = () => recognizer?.stop();
-    return () => recognizer?.stop();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(waiting);
+      release?.();
+    };
   }, []);
 
   const endSession = useCallback(() => {
@@ -202,7 +292,6 @@ export function useTraceSession(
     setStatus("error"); // repurpose: signals "not live"
     setInterim("");
     saveSession({
-      mode,
       folderId: meta?.folderId,
       title: meta?.title,
       startedAt: startedAt.current,
@@ -210,7 +299,7 @@ export function useTraceSession(
       states: statesRef.current,
       transcript: transcriptRef.current,
     });
-  }, [mode, meta?.folderId, meta?.title]);
+  }, [meta?.folderId, meta?.title]);
 
   return {
     videoRef,
@@ -223,6 +312,7 @@ export function useTraceSession(
     interim,
     analyzing,
     speechError,
+    micLabel,
     endSession,
   };
 }

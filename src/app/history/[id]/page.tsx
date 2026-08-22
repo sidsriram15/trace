@@ -1,16 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "@/lib/history";
 import { speak } from "@/lib/speech";
 import { useLessonPlayback } from "@/hooks/useLessonPlayback";
 import { MindMap } from "@/components/MindMap";
 import { useFolders } from "@/lib/folders";
+import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
+import type { VoiceAction } from "@/lib/commands";
 import type { BoardState } from "@/hooks/useTraceSession";
 
-/** Full hands-free read-through of a past class, for blind mode. */
+/** Full hands-free read-through of a past class. */
 function LessonPlayback({ states }: { states: BoardState[] }) {
   const { index, playing, playFrom, pause, next, prev } =
     useLessonPlayback(states);
@@ -18,6 +20,7 @@ function LessonPlayback({ states }: { states: BoardState[] }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target instanceof HTMLElement && e.target.closest("button, input"))
         return;
       if (e.code === "Space") {
@@ -30,6 +33,21 @@ function LessonPlayback({ states }: { states: BoardState[] }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [playing, index, playFrom, pause, next, prev]);
+
+  // Playback commands spoken into the global push-to-talk button arrive
+  // here as an event, so "play this class" works without finding a button.
+  useEffect(() => {
+    const onCommand = (e: Event) => {
+      const action = (e as CustomEvent<VoiceAction>).detail;
+      if (action === "play") playFrom(index ?? 0);
+      else if (action === "pause") pause();
+      else if (action === "next") next();
+      else if (action === "previous") prev();
+      else if (action === "repeat") playFrom(index ?? 0);
+    };
+    window.addEventListener("trace:command", onCommand);
+    return () => window.removeEventListener("trace:command", onCommand);
+  }, [index, playFrom, pause, next, prev]);
 
   return (
     <section aria-label="Listen to this class" className="border-y-2 border-line py-10">
@@ -86,8 +104,9 @@ function LessonPlayback({ states }: { states: BoardState[] }) {
           Next
         </button>
       </div>
-      <p className="mt-3 text-center font-mono text-xs tracking-wide text-faint uppercase">
-        Space — play / pause · Left arrow — previous · Right arrow — next
+      <p className="mt-3 text-center font-mono text-xs leading-6 tracking-wide text-faint uppercase">
+        Say &ldquo;play&rdquo;, &ldquo;next&rdquo;, &ldquo;previous&rdquo; ·
+        Space — play / pause · Left and right arrows — move between updates
       </p>
     </section>
   );
@@ -96,8 +115,15 @@ function LessonPlayback({ states }: { states: BoardState[] }) {
 export default function HistoryDetail() {
   const params = useParams<{ id: string }>();
   const session = useSession(params.id);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const folders = useFolders();
+
+  useSpokenGuidance(
+    session
+      ? `${session.title || "A saved class"}, with ${session.states.length} board update${
+          session.states.length === 1 ? "" : "s"
+        }. Say "play" or press Space to hear the whole class read back to you.`
+      : "This class wasn't found.",
+  );
 
   if (session === undefined) {
     return (
@@ -110,11 +136,7 @@ export default function HistoryDetail() {
     );
   }
 
-  const isBlind = session.mode === "blind";
-  const selected =
-    selectedId === null
-      ? session.states[session.states.length - 1]
-      : session.states.find((s) => s.id === selectedId);
+  const latest = session.states[session.states.length - 1];
   const folderName = session.folderId
     ? folders.find((f) => f.id === session.folderId)?.name
     : undefined;
@@ -130,7 +152,7 @@ export default function HistoryDetail() {
             {folderName && <> · {folderName}</>}
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            {session.title || selected?.heading || "Untitled class"}
+            {session.title || latest?.heading || "Untitled class"}
           </h1>
         </div>
         <p className="font-mono text-sm tracking-wide text-muted uppercase">
@@ -138,58 +160,13 @@ export default function HistoryDetail() {
             weekday: "short",
             month: "short",
             day: "numeric",
-          })}{" "}
-          · {session.mode === "low-vision" ? "Low Vision" : "Blind"}
+          })}
         </p>
       </div>
 
-      {isBlind ? (
-        <div className="mt-8">
-          <LessonPlayback states={session.states} />
-        </div>
-      ) : (
-        <>
-          {selected?.image && (
-            <section
-              aria-label="Whiteboard capture"
-              className="relative mt-6 min-h-[52vh] border border-line bg-surface"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={selected.image}
-                alt={`Whiteboard: ${selected.heading}`}
-                className="absolute inset-0 h-full w-full object-contain"
-              />
-            </section>
-          )}
-
-          <nav aria-label="Board timeline" className="border-x border-b border-line">
-            <ol className="flex overflow-x-auto">
-              {session.states.map((state) => (
-                <li key={state.id} className="flex min-w-44 flex-1">
-                  <button
-                    onClick={() => setSelectedId(state.id)}
-                    aria-current={selected?.id === state.id ? "true" : undefined}
-                    className={`w-full border-l border-line-soft px-4 py-3 text-left first:border-l-0 ${
-                      selected?.id === state.id
-                        ? "bg-foreground text-background"
-                        : "hover:bg-surface"
-                    }`}
-                  >
-                    <span className="block font-mono text-xs tracking-wide">
-                      {state.time}
-                      {state.erased ? " · erased" : ""}
-                    </span>
-                    <span className="mt-1 block text-base font-medium">
-                      {state.label}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </nav>
-        </>
-      )}
+      <div className="mt-8">
+        <LessonPlayback states={session.states} />
+      </div>
 
       <div className="mt-10 grid gap-10 lg:grid-cols-[3fr_2fr] lg:gap-14">
         <section aria-label="Structured notes">
@@ -197,40 +174,34 @@ export default function HistoryDetail() {
             Notes
           </h2>
           <div className="mt-6">
-            {selected?.notes ? (
-              <MindMap markdown={selected.notes} />
+            {latest?.notes ? (
+              <MindMap markdown={latest.notes} />
             ) : (
               <p className="text-base leading-7 text-faint">No notes captured.</p>
             )}
           </div>
         </section>
 
-        <section aria-label="Narration and transcript">
+        <section aria-label="Every board update">
           <h2 className="border-b border-line pb-2 font-mono text-xs font-medium tracking-[0.15em] text-muted uppercase">
-            {isBlind ? "Every board update" : "Transcript"}
+            Every board update
           </h2>
-          <div className="mt-5 space-y-5">
-            {isBlind ? (
-              [...session.states].reverse().map((s) => (
+          <ol className="mt-5 space-y-5">
+            {[...session.states].reverse().map((s) => (
+              <li key={s.id}>
                 <button
-                  key={s.id}
                   onClick={() => speak(s.narration)}
                   className="block w-full text-left hover:opacity-70"
                 >
-                  <span className="block font-mono text-xs text-muted">{s.time}</span>
+                  <span className="block font-mono text-xs text-muted">
+                    {s.time}
+                    {s.erased ? " · board erased" : ""}
+                  </span>
                   <span className="block text-lg leading-8">{s.narration}</span>
                 </button>
-              ))
-            ) : session.transcript.length > 0 ? (
-              session.transcript.map((entry, i) => (
-                <p key={i} className="text-lg leading-8">
-                  {entry.text}
-                </p>
-              ))
-            ) : (
-              <p className="text-base leading-7 text-faint">No transcript captured.</p>
-            )}
-          </div>
+              </li>
+            ))}
+          </ol>
         </section>
       </div>
     </div>

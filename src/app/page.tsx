@@ -5,6 +5,8 @@ import { useState } from "react";
 import { createFolder, deleteFolder, useFolders, type Folder } from "@/lib/folders";
 import { deleteSession, useSessions, type SavedSession } from "@/lib/history";
 import { ClassRow } from "@/components/ClassRow";
+import { useAccount } from "@/lib/account";
+import { useSpokenGuidance } from "@/hooks/useSpokenGuidance";
 
 function FolderSection({
   folder,
@@ -49,8 +51,15 @@ function FolderSection({
 export default function Home() {
   const folders = useFolders();
   const sessions = useSessions();
+  const account = useAccount();
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
+
+  useSpokenGuidance(
+    sessions.length === 0
+      ? "Your classes. Nothing saved yet. Say \"new class\", or press V to talk to Trace any time."
+      : `Your classes. ${sessions.length} saved. Say "new class" to start one, or press V to talk to Trace any time.`,
+  );
 
   const handleCreateFolder = () => {
     const name = newFolderName.trim();
@@ -79,6 +88,25 @@ export default function Home() {
           <p className="mt-4 max-w-xl text-lg leading-8 text-muted">
             Organized by folder. Point a camera at the whiteboard to start a
             new one.
+          </p>
+          <p className="mt-3 text-base text-muted">
+            {account.status === "signed-in" ? (
+              <>
+                Signed in as{" "}
+                <strong className="font-semibold text-foreground">
+                  {account.username}
+                </strong>{" "}
+                — your classes sync across devices.
+              </>
+            ) : (
+              <>
+                Saved on this device only.{" "}
+                <Link href="/account" className="underline hover:no-underline">
+                  Add a PIN
+                </Link>{" "}
+                to use them elsewhere.
+              </>
+            )}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">

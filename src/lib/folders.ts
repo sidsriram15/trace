@@ -36,9 +36,21 @@ function commit(list: Folder[]) {
   notify();
 }
 
-function subscribe(listener: () => void) {
+export function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** Current folders, outside React — used by the sync layer. */
+export function getFolders(): Folder[] {
+  ensureLoaded();
+  return cache;
+}
+
+/** Replace everything, e.g. with what was just pulled for an account. */
+export function replaceFolders(list: Folder[]): void {
+  ensureLoaded();
+  commit(list);
 }
 
 export function createFolder(name: string): Folder {
